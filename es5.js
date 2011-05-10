@@ -1,4 +1,8 @@
-// Copyright (C) 2007 Chris Double.
+// most of an ECMAScript 5 grammar, using jsparse combinators
+//
+// Modifications: Copyright Claus Reinke.
+// Original code: Copyright (C) 2007 Chris Double.
+//                http://github.com/doublec/jsparse
 // 
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
@@ -22,338 +26,535 @@
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
+// TODO: - check for missing details
+//       - ASI
+//       - strict mode
+//       - do we need to refine the regexp grammar?
+
+var grammar = function(pc){
+
+// import parser combinators
+var token = pc.token;
+var ch = pc.ch;
+var range = pc.range;
+var whitespace = pc.whitespace;
+var action = pc.action;
+var join_action = pc.join_action;
+var left_factor_action = pc.left_factor_action;
+var negate = pc.negate;
+var nothing_p = pc.nothing_p;
+var sequence = pc.sequence;
+var wsequence = pc.wsequence;
+var choice = pc.choice;
+var butnot = pc.butnot;
+var repeat0 = pc.repeat0;
+var repeat1 = pc.repeat1;
+var optional = pc.optional;
+var list = pc.list;
+var wlist = pc.wlist;
+var not = pc.not;
+var rule = pc.rule;
+
 // Forward Declarations
 var SourceElement = 
-    function(input) { return SourceElement(input); }
+    function(input) { return SourceElement(input); };
 var AssignmentExpression = 
-    function(input) { return AssignmentExpression(input); }
+    function(input) { return AssignmentExpression(input); };
 var Expression = 
-    function(input) { return Expression(input); }
+    function(input) { return Expression(input); };
 var Statement = 
-    function(input) { return Statement(input); }
+    function(input) { return Statement(input); };
 var LeftHandSideExpression = 
-    function(input) { return LeftHandSideExpression(input); }
+    function(input) { return LeftHandSideExpression(input); };
 
-var Whitespace = choice("\t", " ");
-var LineTerminator = choice(ch("\r"), ch("\n"));
+var Whitespace = 
+    choice("\t", " ");
+var LineTerminator = 
+    choice("\r\n",ch("\r"), ch("\n")); // TODO: avoid fall-through
+var LineTerminatorSequence = 
+    LineTerminator; // TODO: separate these two?
+
+var MultiLineCommentChars = function(input) { return MultiLineCommentChars(input); };
+
+var MultiLineNotAsteriskChar = negate("*");
+var MultiLineNotForwardSlashOrAsteriskChar = negate(choice("/","*"));
+var PostAsteriskCommentChars =
+    choice(sequence(MultiLineNotForwardSlashOrAsteriskChar,optional(MultiLineCommentChars)),
+           sequence(not("*/"),"*",optional(PostAsteriskCommentChars)));
+var MultiLineCommentChars = 
+    choice(sequence(repeat1(MultiLineNotAsteriskChar), optional(MultiLineCommentChars)),
+           sequence(not("*/"),"*",optional(PostAsteriskCommentChars)));
+var MultiLineComment = 
+    rule("MultiLineComment",sequence("/*",optional(MultiLineCommentChars),"*/"));
+  // TODO: extract line terminators from multiline comment
 
 var SingleLineCommentChars = join_action(repeat1(negate(LineTerminator)), "");
-var SingleLineComment = sequence("//", optional(SingleLineCommentChars), LineTerminator);
+var SingleLineComment = 
+    rule("SingleLineComment",sequence("//", optional(SingleLineCommentChars)));
 
-var Comment =
-    choice(SingleLineComment);
+var Comment = rule("Comment",choice(MultiLineComment, SingleLineComment));
 
-var NullLiteral = token("null");
-var BooleanLiteral = choice("true", "false");
-var Zero = action("0", function(ast) { return 0; });
-var DecimalDigit = action(range("0", "9"), function(ast) { return parseInt(ast); });
-var NonZeroDigit = action(range("1", "9"), function(ast) { return parseInt(ast); });
-var DecimalDigits = repeat1(DecimalDigit); 
-var DecimalIntegerLiteral = choice(Zero, sequence(NonZeroDigit, optional(DecimalDigits)));
-var SignedInteger = choice(DecimalDigits, sequence("+", DecimalDigits), sequence("-", DecimalDigits));
-var ExponentIndicator = choice("e", "E");
-var ExponentPart = sequence(ExponentIndicator, SignedInteger);
-var DecimalLiteral = choice(sequence(DecimalIntegerLiteral, ".", optional(DecimalDigits), optional(ExponentPart)),
-			       sequence(".", DecimalDigits, optional(ExponentPart)),
-				sequence(DecimalIntegerLiteral, optional(ExponentPart)));
+// register ES idea of whitespace with combinator library
+// TODO: nicer way of handling this hook
+whitespace.trim = rule("whitespace",repeat0(choice(Whitespace,LineTerminator,Comment)));
 
-var HexDigit = choice(range("0", "9"), range("a", "f"), range("A", "F"));
-var HexIntegerLiteral = sequence(choice("0x", "0X"), repeat1(HexDigit));
-var NumericLiteral = choice(HexIntegerLiteral, DecimalLiteral);
-var SingleEscapeCharacter = choice("'", "\"", "\\", "b", "f", "n", "r", "t", "v");
-var NonEscapeCharacter = negate(SingleEscapeCharacter);
+var NullLiteral = 
+    rule("NullLiteral",token("null"));
+var BooleanLiteral = 
+    rule("BooleanLiteral",choice("true", "false"));
+var Zero = 
+    rule("Zero",action("0", function(ast) { return 0; }));
+var DecimalDigit = 
+    rule("DecimalDigit",action(range("0", "9"), function(ast) { return parseInt(ast); }));
+var NonZeroDigit = 
+    rule("NonZeroDigit",action(range("1", "9"), function(ast) { return parseInt(ast); }));
+var DecimalDigits = 
+    rule("DecimalDigits",repeat1(DecimalDigit)); 
+var DecimalIntegerLiteral = 
+    rule("DecimalIntegerLiteral",choice(Zero, sequence(NonZeroDigit, optional(DecimalDigits))));
+var SignedInteger = 
+    rule("SignedInteger",choice(DecimalDigits, sequence("+", DecimalDigits), sequence("-", DecimalDigits)));
+var ExponentIndicator = 
+    rule("ExponentIndicator",choice("e", "E"));
+var ExponentPart = 
+    rule("ExponentPart",sequence(ExponentIndicator, SignedInteger));
+var DecimalLiteral = 
+    rule("DecimalLiteral",
+    choice(sequence(DecimalIntegerLiteral, ".", optional(DecimalDigits), optional(ExponentPart)),
+      sequence(".", DecimalDigits, optional(ExponentPart)),
+      sequence(DecimalIntegerLiteral, optional(ExponentPart))));
 
-var CharacterEscapeSequence = choice(SingleEscapeCharacter, NonEscapeCharacter);
-var HexEscapeSequence = sequence("x", HexDigit, HexDigit);
-var UnicodeEscapeSequence = sequence("u", HexDigit, HexDigit, HexDigit, HexDigit);
-var EscapeSequence = choice(HexEscapeSequence, UnicodeEscapeSequence, CharacterEscapeSequence);
-var SingleStringCharacter = choice(negate(choice("\'", "\\", "\r", "\n")),
-					sequence("\\", EscapeSequence));
-var DoubleStringCharacter = choice(negate(choice("\"", "\\", "\r", "\n")),
-				      sequence("\\", EscapeSequence));
-var SingleStringCharacters = repeat1(SingleStringCharacter);
-var DoubleStringCharacters = repeat1(DoubleStringCharacter);
+var HexDigit = 
+    rule("HexDigit",choice(range("0", "9"), range("a", "f"), range("A", "F")));
+var HexIntegerLiteral = 
+    rule("HexIntegerLiteral",sequence(choice("0x", "0X"), repeat1(HexDigit)));
+var NumericLiteral = 
+    rule("NumericLiteral",choice(HexIntegerLiteral, DecimalLiteral));
+var SingleEscapeCharacter = 
+    rule("SingleEscapeCharacter",choice("'", "\"", "\\", "b", "f", "n", "r", "t", "v"));
+var NonEscapeCharacter = 
+    rule("NonEscapeCharacter",
+    negate(choice(SingleEscapeCharacter,LineTerminator))); // TODO: EscapeCharacter
 
-var StringLiteral = choice(sequence("\"", optional(DoubleStringCharacters), "\""),
-			       sequence("'", optional(SingleStringCharacters), "'"));
+var CharacterEscapeSequence = 
+    rule("CharacterEscapeSequence",
+    choice(SingleEscapeCharacter, NonEscapeCharacter));
+var HexEscapeSequence = 
+    rule("HexEscapeSequence",
+    sequence("x", HexDigit, HexDigit));
+var UnicodeEscapeSequence = 
+    rule("UnicodeEscapeSequence",
+    sequence("u", HexDigit, HexDigit, HexDigit, HexDigit));
+var EscapeSequence = 
+    rule("EscapeSequence",
+    choice(HexEscapeSequence, UnicodeEscapeSequence, CharacterEscapeSequence));
+var LineContinuation = 
+    rule("LineContinuation",
+    sequence("\\",LineTerminatorSequence));
+var SingleStringCharacter = 
+    rule("SingleStringCharacter",
+    choice(negate(choice("\'", "\\", "\r", "\n")), // TODO: LineTerminator
+           sequence("\\", EscapeSequence)));
+var DoubleStringCharacter = 
+    rule("DoubleStringCharacter",
+    choice(negate(choice("\"", "\\", "\r", "\n")), // TODO: LineTerminator
+           sequence("\\", EscapeSequence),
+           LineContinuation));
+var SingleStringCharacters = 
+    rule("SingleStringCharacters",repeat1(SingleStringCharacter));
+var DoubleStringCharacters = 
+    rule("DoubleStringCharacters",repeat1(DoubleStringCharacter));
 
-var Literal = choice(NullLiteral, BooleanLiteral, NumericLiteral, StringLiteral);					       
+var StringLiteral = 
+    rule("StringLiteral",
+    choice(sequence("\"", optional(DoubleStringCharacters), "\""),
+           sequence("'", optional(SingleStringCharacters), "'")));
+
+var IdentifierPart = function(input) { return IdentifierPart(input); };
+
+var RegularExpressionNonTerminator = 
+    rule("RegularExpressionNonTerminator",negate(LineTerminator));
+var RegularExpressionBackslashSequence = 
+    rule("RegularExpressionBackslashSequence",sequence("\\",RegularExpressionNonTerminator));
+var RegularExpressionClassChar = 
+    rule("RegularExpressionClassChar",
+    choice(butnot(RegularExpressionNonTerminator,choice("]","\\")),
+           RegularExpressionBackslashSequence));
+var RegularExpressionClassChars = 
+    rule("RegularExpressionClassChars",repeat0(RegularExpressionClassChar));
+var RegularExpressionClass = 
+    rule("RegularExpressionClass",sequence("[",RegularExpressionClassChars,"]"));
+var RegularExpressionFirstChar = 
+    rule("RegularExpressionFirstChar",
+    choice(butnot(RegularExpressionNonTerminator,choice("*","\\","/","[")),
+           RegularExpressionBackslashSequence,
+           RegularExpressionClass));
+var RegularExpressionChar = 
+    rule("RegularExpressionChar",
+    choice(butnot(RegularExpressionNonTerminator,choice("\\","/","[")),
+           RegularExpressionBackslashSequence,
+           RegularExpressionClass));
+var RegularExpressionChars = 
+    rule("RegularExpressionChars",repeat0(RegularExpressionChar));
+var RegularExpressionBody = 
+    rule("RegularExpressionBody",sequence(RegularExpressionFirstChar,RegularExpressionChars));
+var RegularExpressionFlags = 
+    rule("RegularExpressionFlags",repeat0(IdentifierPart));
+var RegularExpressionLiteral = 
+    rule("RegularExpressionLiteral",sequence("/",RegularExpressionBody,"/",RegularExpressionFlags));
+
+var Literal = 
+    rule("Literal",
+    choice(NullLiteral, BooleanLiteral, NumericLiteral, StringLiteral, RegularExpressionLiteral));
 
 var Keyword = 
+    rule("Keyword",
     choice("break",
-	      "case",
-	      "catch",
-	      "continue",
-	      "default",
-	      "delete",
-	      "do",
-	      "else",
-	      "finally",
-	      "for",
-	      "function",
-	      "if",
-	      "in",
-	      "instanceof",
-	      "new",
-	      "return",
-	      "switch",
-	      "this",
-	      "throw",
-	      "try",
-	      "typeof",
-	      "var",
-	      "void",
-	      "while",
-	      "with");
+      "case",
+      "catch",
+      "continue",
+      "debugger",
+      "default",
+      "delete",
+      "do",
+      "else",
+      "finally",
+      "for",
+      "function",
+      "if",
+      "in",
+      "instanceof",
+      "new",
+      "return",
+      "switch",
+      "this",
+      "throw",
+      "try",
+      "typeof",
+      "var",
+      "void",
+      "while",
+      "with"));
 
-var ReservedWord = choice(Keyword, NullLiteral, BooleanLiteral);
+var FutureReservedWord = 
+    rule("FutureReservedWord",
+    choice("class","const","enum","export","extends","import","super"));
+    // strict mode:
+    // "implements", "interface", "let", 
+    // "package", "private", "protected", "public", "static", 
+    // "yield"
+var ReservedWord = 
+    rule("ReservedWord",
+    choice(Keyword, FutureReservedWord, NullLiteral, BooleanLiteral));
 
-var HexDigit = choice(range("0", "9"), range("a", "f"), range("A", "F"));
-var IdentifierLetter = choice(range("a", "z"), range("A", "Z"));
-var IdentifierStart = choice(IdentifierLetter, "$", "_");
-var IdentifierPart = choice(IdentifierStart, range("0-9"));
+var HexDigit = 
+    rule("HexDigit",choice(range("0", "9"), range("a", "f"), range("A", "F")));
+var IdentifierLetter = 
+    rule("IdentifierLetter",choice(range("a", "z"), range("A", "Z")));
+var IdentifierStart = 
+    rule("IdentifierStart",choice(IdentifierLetter, "$", "_"));
+var IdentifierPart = 
+    rule("IdentifierPart",choice(IdentifierStart, range("0","9")));
 var IdentifierName = 
+    rule("IdentifierName",
     action(sequence(IdentifierStart, join_action(repeat0(IdentifierPart), "")),
-	   function(ast) { 
-	       return ast[0].concat(ast[1]); 
-	   });
-var Identifier = butnot(IdentifierName, ReservedWord);
+     function(ast) { 
+         return ast[0].concat(ast[1]); 
+     }));
+var Identifier = 
+    rule("Identifier",butnot(IdentifierName, ReservedWord));
 
-var StatementList = repeat1(Statement);
-var Block = wsequence("{", optional(StatementList), "}");
-var Initialiser = wsequence("=", AssignmentExpression);
-var VariableDeclaration = wsequence(Identifier, optional(Initialiser));
-var VariableDeclarationList = wlist(VariableDeclaration, ",");	      
+var StatementList = 
+    rule("StatementList",repeat1(Statement));
+var Block = 
+    rule("Block",wsequence("{", optional(StatementList), "}"));
+var Initialiser = 
+    rule("Initialiser",wsequence("=", AssignmentExpression));
+var VariableDeclaration = 
+    rule("VariableDeclaration",wsequence(Identifier, optional(Initialiser)));
+var VariableDeclarationList = 
+    rule("VariableDeclarationList",wlist(VariableDeclaration, ","));	      
 var VariableStatement = 
-    wsequence("var", VariableDeclarationList);
+    rule("VariableStatement",wsequence("var", VariableDeclarationList,";"));
 
-var EmptyStatement = token(";");
+var EmptyStatement = 
+    rule("EmptyStatement",whitespace(token(";")));
 
 var IfStatement = 
+    rule("IfStatement",
     choice(wsequence("if", "(", Expression, ")", Statement, "else", Statement),
-	      wsequence("if", "(", Expression, ")", Statement));
+      wsequence("if", "(", Expression, ")", Statement)));
 
 var IterationStatement =
+    rule("IterationStatement",
     choice(wsequence("do", Statement, "while", "(", Expression, ")", ";"),
-	      wsequence("while", "(", Expression, ")", Statement),
-	      wsequence("for", "(", optional(Expression), ";", optional(Expression), ";", optional(Expression), ")", Statement),
-	      wsequence("for", "(", "var", VariableDeclarationList, ";", optional(Expression), ";", optional(Expression), ")", Statement),
-	      wsequence("for", "(", LeftHandSideExpression, "in", Expression, ")", Statement),
-	      wsequence("for", "(", "var", VariableDeclaration, "in", Expression, ")", Statement));
+      wsequence("while", "(", Expression, ")", Statement),
+      wsequence("for", "(", optional(Expression), ";", optional(Expression), ";", optional(Expression), ")", Statement),
+      wsequence("for", "(", "var", VariableDeclarationList, ";", optional(Expression), ";", optional(Expression), ")", Statement),
+      wsequence("for", "(", LeftHandSideExpression, "in", Expression, ")", Statement),
+      wsequence("for", "(", "var", VariableDeclaration, "in", Expression, ")", Statement)));
 
-var ContinueStatement = wsequence("continue", optional(Identifier), ";");
-var BreakStatement = wsequence("break", optional(Identifier), ";");
-var ReturnStatement = wsequence("return", optional(Expression), ";");
-var WithStatement = wsequence("with", "(", Expression, ")", Statement);
+var ContinueStatement = 
+    rule("ContinueStatement",wsequence("continue", optional(Identifier), ";"));
+var BreakStatement = 
+    rule("BreakStatement",wsequence("break", optional(Identifier), ";"));
+var ReturnStatement = 
+    rule("ReturnStatement",wsequence("return", optional(Expression), ";"));
+var WithStatement = 
+    rule("WithStatement",wsequence("with", "(", Expression, ")", Statement));
 
 
 var CaseClause =
-    wsequence("case", Expression, ":", optional(StatementList));
+    rule("CaseClause",wsequence("case", Expression, ":", optional(StatementList)));
 var DefaultClause =
-    wsequence("default", ":", optional(StatementList));
+    rule("DefaultClause",wsequence("default", ":", optional(StatementList)));
 var CaseBlock =
+    rule("CaseBlock",
     choice(wsequence("{", repeat0(CaseClause), "}"),
-	      wsequence("{", repeat0(CaseClause), DefaultClause, repeat0(CaseClause), "}"));
+      wsequence("{", repeat0(CaseClause), DefaultClause, repeat0(CaseClause), "}")));
 
-var SwitchStatement = wsequence("switch", "(", Expression, ")", CaseBlock);
-var LabelledStatement = wsequence(Identifier, ":", Statement);
-var ThrowStatement = wsequence("throw", Expression, ";");
+var SwitchStatement = 
+    rule("SwitchStatement",wsequence("switch", "(", Expression, ")", CaseBlock));
+var LabelledStatement = 
+    rule("LabelledStatement",wsequence(Identifier, ":", Statement));
+var ThrowStatement = 
+    rule("ThrowStatement",wsequence("throw", Expression, ";"));
 
-var Catch = wsequence("catch", "(", Identifier, ")", Block);
-var Finally = wsequence("finally", Block);
+var Catch = rule("Catch",wsequence("catch", "(", Identifier, ")", Block));
+var Finally = rule("Finally",wsequence("finally", Block));
 var TryStatement = 
+    rule("TryStatement",
     choice(wsequence("try", Block, Catch),
-	      wsequence("try", Block, Finally),
-	      wsequence("try", Block, Catch, Finally));
+      wsequence("try", Block, Finally),
+      wsequence("try", Block, Catch, Finally)));
 
 var ExpressionStatement = 
+    rule("ExpressionStatement",
     choice(sequence(choice("{", "function"), nothing_p),
-	      Expression);
+      sequence(Expression,";")));
 var Statement = 
+    rule("Statement",
     choice(Block,
-	      VariableStatement,
-	      EmptyStatement,
-	      ExpressionStatement,
-	      IfStatement,
-	      IterationStatement,
-	      ContinueStatement,
-	      BreakStatement,
-	      ReturnStatement,
-	      WithStatement,
-	      SwitchStatement,
-	      LabelledStatement,
-	      ThrowStatement,
-	      TryStatement);
+      VariableStatement,
+      EmptyStatement,
+      LabelledStatement,  // before ExpressionStatement // TODO: avoid fall-through
+      ExpressionStatement,
+      IfStatement,
+      IterationStatement,
+      ContinueStatement,
+      BreakStatement,
+      ReturnStatement,
+      WithStatement,
+      SwitchStatement,
+      ThrowStatement,
+      TryStatement));
 
 var FunctionDeclaration = 
-    function(input) { return FunctionDeclaration(input); }
+    function(input) { return FunctionDeclaration(input); };
 
-var FunctionBody = repeat0(SourceElement);
-var FormalParameterList = wlist(Identifier, ",");	      
+var FunctionBody = 
+    rule("FunctionBody",repeat0(SourceElement));
+var FormalParameterList = 
+    rule("FormalParameterList",wlist(Identifier, ","));	      
 var FunctionExpression = 
-    wsequence("function", optional(Identifier), "(", optional(FormalParameterList), ")", "{", FunctionBody, "}");
+    rule("FunctionExpression",
+    wsequence("function", optional(Identifier), "(", optional(FormalParameterList), ")", 
+      choice(wsequence("{", FunctionBody, "}") /* ,
+             wsequence("=>", FunctionBody) */ )));
 
 var FunctionDeclaration = 
-    wsequence("function", Identifier, "(", optional(FormalParameterList), ")", "{", FunctionBody, "}");
+    rule("FunctionDeclaration",
+    wsequence("function", Identifier, "(", optional(FormalParameterList), ")", 
+      choice(wsequence("{", FunctionBody, "}") /*,
+             wsequence("=>", FunctionBody) */ )));
 
 
 var PrimaryExpression = 
-    function(input) { return PrimaryExpression(input); }
+    function(input) { return PrimaryExpression(input); };
 
-var ArgumentList = list(AssignmentExpression, ",");       
+var ArgumentList = rule("ArgumentList",list(AssignmentExpression, ","));       
 var Arguments = 
+    rule("Arguments",
     choice(wsequence("(", ")"),
-	      wsequence("(", ArgumentList, ")"));
+      wsequence("(", ArgumentList, ")") /*,
+      wsequence("@", AssignmentExpression) */));
 
-var MemberExpression = function(input) { return MemberExpression(input); }    
+var MemberExpression = function(input) { return MemberExpression(input); };
 var MemberExpression =
+    rule("MemberExpression",
     left_factor_action(sequence(choice(wsequence("new", MemberExpression, Arguments),
-					  PrimaryExpression,
-					  FunctionExpression),
-				repeat0(choice(wsequence("[", Expression, "]"),
-						  wsequence(".", Identifier)))));
+      PrimaryExpression,
+      FunctionExpression),
+    repeat0(choice(wsequence("[", Expression, "]"),
+     wsequence(".", Identifier))))));
 
+var NewExpression = function(input) { return NewExpression(input); };
 var NewExpression = 
+    rule("NewExpression",
     choice(MemberExpression,
-	      wsequence("new", NewExpression));
+      wsequence("new", NewExpression)));
 var CallExpression = 
+    rule("CallExpression",
     left_factor_action(wsequence(wsequence(MemberExpression, Arguments),
-				repeat0(choice(Arguments,
-						  wsequence("[", Expression, "]"),
-						  wsequence(".", Identifier)))));
-		      
-var LeftHandSideExpression = choice(CallExpression, NewExpression);
+      repeat0(choice(Arguments,
+        wsequence("[", Expression, "]"),
+        wsequence(".", Identifier))))));
+  
+var LeftHandSideExpression = 
+    rule("LeftHandSideExpression",choice(CallExpression, NewExpression));
 
 var AssignmentOperator = 
-    choice("=",
-	      "*=",
-	      "/=",
-	      "%=",
-	      "+=",
-	      "-=",
-	      "<<=",
-	      ">>=",
-	      ">>>=",
-	      "&=",
-	      "^=",
-	      "|=");
+    rule("AssignmentOperator",choice("=",
+      "*=",
+      "/=",
+      "%=",
+      "+=",
+      "-=",
+      "<<=",
+      ">>=",
+      ">>>=",
+      "&=",
+      "^=",
+      "|="));
 
 var LogicalORExpression = 
-    function(input) { return LogicalORExpression(input); }
+    function(input) { return LogicalORExpression(input); };
 var LogicalANDExpression = 
-    function(input) { return LogicalANDExpression(input); }
+    function(input) { return LogicalANDExpression(input); };
 var BitwiseORExpression = 
-    function(input) { return BitwiseORExpression(input); }
+    function(input) { return BitwiseORExpression(input); };
 var BitwiseXORExpression = 
-    function(input) { return BitwiseXORExpression(input); }
+    function(input) { return BitwiseXORExpression(input); };
 var BitwiseANDExpression = 
-    function(input) { return BitwiseANDExpression(input); }
+    function(input) { return BitwiseANDExpression(input); };
 var EqualityExpression = 
-    function(input) { return EqualityExpression(input); }
+    function(input) { return EqualityExpression(input); };
 var RelationalExpression = 
-    function(input) { return RelationalExpression(input); }
+    function(input) { return RelationalExpression(input); };
 var ShiftExpression = 
-    function(input) { return ShiftExpression(input); }
+    function(input) { return ShiftExpression(input); };
 var AdditiveExpression = 
-    function(input) { return AdditiveExpression(input); }
+    function(input) { return AdditiveExpression(input); };
 var MultiplicativeExpression = 
-    function(input) { return MultiplicativeExpression(input); }
+    function(input) { return MultiplicativeExpression(input); };
 var UnaryExpression = 
-    function(input) { return UnaryExpression(input); }
+    function(input) { return UnaryExpression(input); };
 var PostfixExpression = 
-    function(input) { return PostfixExpression(input); }
+    function(input) { return PostfixExpression(input); };
 
 var PostfixExpression =
+    rule("PostfixExpression",
     choice(wsequence(LeftHandSideExpression, "++"),
-	      wsequence(LeftHandSideExpression, "--"),
-	      LeftHandSideExpression);
+      wsequence(LeftHandSideExpression, "--"),
+      LeftHandSideExpression));
 
 var UnaryExpression =
+    rule("UnaryExpression",
     choice(PostfixExpression,
-	      wsequence("delete", UnaryExpression),
-	      wsequence("void", UnaryExpression),
-	      wsequence("typeof", UnaryExpression),
-	      wsequence("++", UnaryExpression),
-	      wsequence("--", UnaryExpression),
-	      wsequence("+", UnaryExpression),
-	      wsequence("-", UnaryExpression),
-	      wsequence("~", UnaryExpression),
-	      wsequence("!", UnaryExpression));
+      wsequence("delete", UnaryExpression),
+      wsequence("void", UnaryExpression),
+      wsequence("typeof", UnaryExpression),
+      wsequence("++", UnaryExpression),
+      wsequence("--", UnaryExpression),
+      wsequence("+", UnaryExpression),
+      wsequence("-", UnaryExpression),
+      wsequence("~", UnaryExpression),
+      wsequence("!", UnaryExpression)));
 
 var MultiplicativeExpression =
+    rule("MultiplicativeExpression",
     wsequence(UnaryExpression,
-	      repeat0(choice(wsequence("*", UnaryExpression),
-				wsequence("/", UnaryExpression),
-				wsequence("%", UnaryExpression))));
+      repeat0(choice(wsequence("*", UnaryExpression),
+      wsequence("/", UnaryExpression),
+      wsequence("%", UnaryExpression)))));
 
 var AdditiveExpression =
+    rule("AdditiveExpression",
     wsequence(MultiplicativeExpression,
-	      repeat0(choice(wsequence("+", MultiplicativeExpression),
-				wsequence("-", MultiplicativeExpression))));
-	      
+      repeat0(choice(wsequence("+", MultiplicativeExpression),
+      wsequence("-", MultiplicativeExpression)))));
+
 var ShiftExpression = 
+    rule("ShiftExpression",
     wsequence(AdditiveExpression,
-	      repeat0(choice(wsequence("<<", AdditiveExpression),
-				wsequence(">>", AdditiveExpression),
-				wsequence(">>>", AdditiveExpression))));
+      repeat0(choice(wsequence("<<", AdditiveExpression),
+      wsequence(">>", AdditiveExpression),
+      wsequence(">>>", AdditiveExpression)))));
 
 var RelationalExpression =
+    rule("RelationalExpression",
     wsequence(ShiftExpression,
-	      repeat0(choice(wsequence("<", ShiftExpression),
-				wsequence(">", ShiftExpression),
-				wsequence("<=", ShiftExpression),
-				wsequence(">=", ShiftExpression),
-				wsequence("instanceof", ShiftExpression))));
+      repeat0(choice(wsequence("<", ShiftExpression),
+      wsequence(">", ShiftExpression),
+      wsequence("<=", ShiftExpression),
+      wsequence(">=", ShiftExpression),
+      wsequence("instanceof", ShiftExpression)))));
 
-var EqualityExpression =
+var EqualityExpression = // TODO: what about the ..NoIn variants?
+    rule("EqualityExpression",
     wsequence(RelationalExpression, 
-	      repeat0(choice(wsequence("==", RelationalExpression),
-				wsequence("!==", RelationalExpression),
-				wsequence("===", RelationalExpression),
-				wsequence("!==", RelationalExpression))));
+      repeat0(choice(wsequence("===", RelationalExpression),
+                     wsequence("!==", RelationalExpression),
+                     wsequence("==", RelationalExpression),
+                     wsequence("!=", RelationalExpression)))));
 
 var BitwiseANDExpression = 
-    wsequence(EqualityExpression, repeat0(wsequence("&", EqualityExpression)));
+    rule("BitwiseANDExpression",
+    wsequence(EqualityExpression, repeat0(wsequence("&", EqualityExpression))));
 var BitwiseXORExpression = 
-    wsequence(BitwiseANDExpression, repeat0(wsequence("^", BitwiseANDExpression)));
+    rule("BitwiseXORExpression",
+    wsequence(BitwiseANDExpression, repeat0(wsequence("^", BitwiseANDExpression))));
 var BitwiseORExpression = 
-    wsequence(BitwiseXORExpression, repeat0(wsequence("|", BitwiseXORExpression)));
+    rule("BitwiseORExpression",
+    wsequence(BitwiseXORExpression, repeat0(wsequence("|", BitwiseXORExpression))));
 var LogicalANDExpression = 
-    wsequence(BitwiseORExpression, repeat0(wsequence("&&", BitwiseORExpression)));
+    rule("LogicalANDExpression",
+    wsequence(BitwiseORExpression, repeat0(wsequence("&&", BitwiseORExpression))));
 
 var LogicalORExpression = 
-    wsequence(LogicalANDExpression, repeat0(wsequence("||", LogicalANDExpression)));
+    rule("LogicalORExpression",
+    wsequence(LogicalANDExpression, repeat0(wsequence("||", LogicalANDExpression))));
 
 var ConditionalExpression = 
-    choice(LogicalORExpression,
-	      wsequence(LogicalORExpression, "?", AssignmentExpression, ":", AssignmentExpression));
+    rule("ConditionalExpression",
+    choice(wsequence(LogicalORExpression, "?", AssignmentExpression, ":", AssignmentExpression),
+           LogicalORExpression));
 
 var AssignmentExpression = 
+    rule("AssignmentExpression",
     choice(wsequence(LeftHandSideExpression, AssignmentOperator, AssignmentExpression),
-	      ConditionalExpression);
+      ConditionalExpression));
 
-var Expression = list(AssignmentExpression, ",");
+var Expression = rule("Expression",list(AssignmentExpression, ","));
 
-var Elision = repeat1(","); 
-var ElementList = list(wsequence(optional(Elision), AssignmentExpression), ",");
+var Elision = rule("Elision",repeat1(",")); 
+var ElementList = 
+    rule("ElementList",list(wsequence(optional(Elision), AssignmentExpression), ","));
 var ArrayLiteral = 
+    rule("ArrayLiteral",
     choice(wsequence("[", optional(Elision), "]"),
-	      wsequence("[", ElementList, "]"),
-	      wsequence("[", ElementList, optional(Elision), "]"));
+      wsequence("[", ElementList, "]"),
+      wsequence("[", ElementList, optional(Elision), "]")));
 
-var PropertyName = choice(Identifier, StringLiteral, NumericLiteral);
+var PropertyName = rule("PropertyName",choice(Identifier, StringLiteral, NumericLiteral));
 var PropertyNameAndValueList =
-    list(wsequence(PropertyName, ":", AssignmentExpression), ",");
+    rule("PropertyNameAndValueList",
+    list(wsequence(PropertyName, ":", AssignmentExpression), ","));
 var ObjectLiteral = 
+    rule("ObjectLiteral",
     choice(wsequence("{", "}"),
-	      wsequence("{", PropertyNameAndValueList, "}"));
+      wsequence("{", PropertyNameAndValueList, "}")));
 
 var PrimaryExpression = 
-    choice("this",
-	      wsequence("(", Expression, ")"),
-	      Identifier,
-	      ArrayLiteral,
-	      ObjectLiteral,
-	      Literal);
-var SourceElement = choice(Comment, Statement, FunctionDeclaration);
-var Program = repeat0(SourceElement);
+    rule("PrimaryExpression",choice("this",
+      wsequence("(", Expression, ")"),
+      Identifier,
+      ArrayLiteral,
+      ObjectLiteral,
+      Literal));
+var SourceElement = rule("SourceElement",choice(Statement, FunctionDeclaration));
+var Program = rule("Program",repeat0(SourceElement));
+
+return {Program : Program };
+
+};

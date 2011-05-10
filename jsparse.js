@@ -1,4 +1,8 @@
-// Copyright (C) 2007 Chris Double.
+// a parser combinator library (packrat parsing of parsing expression grammars)
+//
+// Modifications: Copyright Claus Reinke.
+// Original code: Copyright (C) 2007 Chris Double.
+//                http://github.com/doublec/jsparse
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
@@ -22,6 +26,8 @@
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
+var pc = (function(){
+
 function foldl(f, initial, seq) {
     for(var i=0; i< seq.length; ++i)
         initial = f(initial, seq[i]);
@@ -29,39 +35,50 @@ function foldl(f, initial, seq) {
 }
 
 var memoize = true;
+var debug   = false;
 
-function ParseState(input, index) {
+function set_debug(flag) { debug = flag; }
+
+function ParseState(input, index, line) {
     this.input = input;
     this.index = index || 0;
     this.length = input.length - this.index;
     this.cache = { };
+    this.line  = line || 1;
     return this;
 }
 
-ParseState.prototype.from = function(index) {
-    var r = new ParseState(this.input, this.index + index);
+ParseState.prototype.incLine = function(s) {
+  var nls = s.match(/(\r\n|\r|\n)/g);
+  if (nls) this.line += nls.length;
+};
+
+ParseState.prototype.from = function(index,s) {
+    var r = new ParseState(this.input, this.index + index, this.line);
     r.cache = this.cache;
     r.length = this.length - index;
+    r.incLine(s);
     return r;
-}
+};
 
 ParseState.prototype.substring = function(start, end) {
     return this.input.substring(start + this.index, (end || this.length) + this.index);
-}
+};
 
 ParseState.prototype.trimLeft = function() {
     var s = this.substring(0);
     var m = s.match(/^\s+/);
-    return m ? this.from(m[0].length) : this;
-}
+    var nls = m.match(/\(\r\n\|\r\|\n\)/g);
+    return m ? this.from(m[0].length,m) : this;
+};
 
 ParseState.prototype.at = function(index) {
     return this.input.charAt(this.index + index);
-}
+};
 
 ParseState.prototype.toString = function() {
     return 'PS"' + this.substring(0) + '"';
-}
+};
 
 ParseState.prototype.getCached = function(pid) {
     if(!memoize)
@@ -69,23 +86,24 @@ ParseState.prototype.getCached = function(pid) {
 
     var p = this.cache[pid];
     if(p)
-        return p[this.index];
+        var cached = p[this.index];
     else
-        return false;
-}
+        var cached = false;
+    if (debug&&cached) log("getCached ("+pid+"/"+this.index+") "+cached.matched);
+    return cached;
+};
 
 ParseState.prototype.putCached = function(pid, cached) {
     if(!memoize)
         return false;
 
     var p = this.cache[pid];
-    if(p)
-        p[this.index] = cached;
-    else {
-        p = this.cache[pid] = { };
-        p[this.index] = cached;
-    }
-}
+    if(!p)
+      p = this.cache[pid] = { };
+    p[this.index] = cached;
+    if (debug) log("putCached ("+pid+"/"+this.index+") "+(cached?cached.matched:"false"));
+    if (debug) log("TRACKING: "+((this.cache[676]||[])[4]||{}).matched);
+};
 
 function ps(str) {
     return new ParseState(str);
@@ -105,39 +123,43 @@ var parser_id = 0;
 // that parses that string value. The AST contains the string that was parsed.
 function token(s) {
     var pid = parser_id++;
-    return function(state) {
+    var parser = function(state) {
         var savedState = state;
         var cached = savedState.getCached(pid);
         if(cached)
             return cached;
 
         var r = state.length >= s.length && state.substring(0,s.length) == s;
-        if(r)
-            cached = { remaining: state.from(s.length), matched: s, ast: s };
-        else
+        if(r) {
+            cached = { remaining: state.from(s.length,s), matched: s, ast: s };
+        } else
             cached = false;
         savedState.putCached(pid, cached);
         return cached;
     };
+    parser.toString = function() { return "token(\""+s+"\")"; };
+    return parser;
 }
 
 // Like 'token' but for a single character. Returns a parser that given a string
 // containing a single character, parses that character value.
 function ch(c) {
     var pid = parser_id++;
-    return function(state) {
+    var parser = function(state) {
         var savedState = state;
         var cached = savedState.getCached(pid);
         if(cached)
             return cached;
         var r = state.length >= 1 && state.at(0) == c;
-        if(r)
-            cached = { remaining: state.from(1), matched: c, ast: c };
-        else
+        if(r) {
+            cached = { remaining: state.from(1,c), matched: c, ast: c };
+        } else
             cached = false;
         savedState.putCached(pid, cached);
         return cached;
     };
+    parser.toString = function() { return "ch(\""+c+"\")"; };
+    return parser;
 }
 
 // 'range' is a parser combinator that returns a single character parser
@@ -145,7 +167,7 @@ function ch(c) {
 // range of the 'lower' and 'upper' bounds ("a" to "z" for example).
 function range(lower, upper) {
     var pid = parser_id++;
-    return function(state) {
+    var parser = function(state) {
         var savedState = state;
         var cached = savedState.getCached(pid);
         if(cached)
@@ -156,13 +178,15 @@ function range(lower, upper) {
         else {
             var ch = state.at(0);
             if(ch >= lower && ch <= upper)
-                cached = { remaining: state.from(1), matched: ch, ast: ch };
+                cached = { remaining: state.from(1,ch), matched: ch, ast: ch };
             else
                 cached = false;
         }
         savedState.putCached(pid, cached);
         return cached;
     };
+    parser.toString = function() { return "range("+lower+","+upper+")"; };
+    return parser;
 }
 
 // Helper function to convert string literals to token parsers
@@ -171,29 +195,68 @@ function toParser(p) {
     return (typeof(p) == "string") ? token(p) : p;
 }
 
+// grammar rule trace, controlled by regex 
+// (depth limit for toString cycles not protected by named rules)
+var depth = 0, max_depth = 1000000;
+var trace = false, no_trace = false;
+function set_trace(include_regex,exclude_regex) {
+  trace    = include_regex;
+  no_trace = exclude_regex;
+}
+
 // Parser combinator that returns a parser that
 // skips whitespace before applying parser.
+// TODO: should this be sequence(whitespace.trim,p)?
 function whitespace(p) {
     var p = toParser(p);
     var pid = parser_id++;
-    return function(state) {
+    var parser = rule("pc.whitespace("+p+")",function(state) {
         var savedState = state;
         var cached = savedState.getCached(pid);
         if(cached)
             return cached;
 
-        cached = p(state.trimLeft());
+        var trimmed = whitespace.trim(state);
+
+        // allow trace control in comments
+        if (trimmed.matched.match(/trace[:\+-]/)) {
+          if (trimmed.matched.match(/trace:on/)) trace = new RegExp('.*');
+          if (trimmed.matched.match(/trace:off/)) trace = false;
+          var match = trimmed.matched.match(/trace\+([^+]*)\+/);
+          if (match) {
+            log('tracing '+match[1]);
+            trace = new RegExp(match[1]);
+          }
+          var match = trimmed.matched.match(/trace-([^+]*)-/);
+          if (match) {
+            log('not tracing '+match[1]);
+            no_trace = new RegExp(match[1]);
+          }
+        }
+
+        var result = p(trimmed.remaining);
+        if (result) 
+          cached = make_result(result.remaining,
+                               trimmed.matched + result.matched,
+                               [trimmed.ast, result.ast]
+                              );
+        else
+          cached = false;
         savedState.putCached(pid, cached);
         return cached;
-    };
+    });
+    parser.toString = function() { return "whitespace("+(depth++>max_depth?"...":p)+")"; };
+    return parser;
 }
+// hook for grammar-specified whitespace, with default trim
+whitespace.trim = function(input) { return input.trimLeft(); };
 
 // Parser combinator that passes the AST generated from the parser 'p'
 // to the function 'f'. The result of 'f' is used as the AST in the result.
 function action(p, f) {
     var p = toParser(p);
     var pid = parser_id++;
-    return function(state) {
+    var parser = function(state) {
         var savedState = state;
         var cached = savedState.getCached(pid);
         if(cached)
@@ -210,12 +273,18 @@ function action(p, f) {
         savedState.putCached(pid, cached);
         return cached;
     };
+    parser.toString = function() { return "action("+(depth++>max_depth?"...":p)+","+f+")"; };
+    return parser;
 }
 
 // Given a parser that produces an array as an ast, returns a
 // parser that produces an ast with the array joined by a separator.
 function join_action(p, sep) {
-    return action(p, function(ast) { return ast.join(sep); });
+    var parser = action(p, function(ast) { return ast.join(sep); });
+    parser.toString = function() {
+      return "join_action("+(depth++>max_depth?"...":p)+","+sep+")";
+    };
+    return parser;
 }
 
 // Given an ast of the form [ Expression, [ a, b, ...] ], convert to
@@ -238,7 +307,11 @@ function left_factor(ast) {
 // Return a parser that left factors the ast result of the original
 // parser.
 function left_factor_action(p) {
-    return action(p, left_factor);
+    var parser = action(p, left_factor);
+    parser.toString = function() {
+      return "left_factor_action("+(depth++>max_depth?"...":p)+")";
+    };
+    return parser;
 }
 
 // 'negate' will negate a single character parser. So given 'ch("a")' it will successfully
@@ -247,7 +320,7 @@ function left_factor_action(p) {
 function negate(p) {
     var p = toParser(p);
     var pid = parser_id++;
-    return function(state) {
+    var parser = function(state) {
         var savedState = state;
         var cached = savedState.getCached(pid);
         if(cached)
@@ -255,9 +328,9 @@ function negate(p) {
 
         if(state.length >= 1) {
             var r = p(state);
-            if(!r)
-                cached =  make_result(state.from(1), state.at(0), state.at(0));
-            else
+            if(!r) {
+                cached =  make_result(state.from(1,state.at(0)), state.at(0), state.at(0));
+            } else
                 cached = false;
         }
         else {
@@ -266,6 +339,8 @@ function negate(p) {
         savedState.putCached(pid, cached);
         return cached;
     };
+    parser.toString = function () { return "negate("+(depth++>max_depth?"...":p)+")"; };
+    return parser;
 }
 
 // 'end_p' is a parser that is successful if the input string is empty (ie. end of parse).
@@ -289,7 +364,7 @@ function sequence() {
     for(var i = 0; i < arguments.length; ++i)
         parsers.push(toParser(arguments[i]));
     var pid = parser_id++;
-    return function(state) {
+    var parser = function(state) {
         var savedState = state;
         var cached = savedState.getCached(pid);
         if(cached) {
@@ -302,6 +377,7 @@ function sequence() {
         for(i=0; i< parsers.length; ++i) {
             var parser = parsers[i];
             var result = parser(state);
+            // log('sequence.'+i+': '+parser+' = '+result);
             if(result) {
                 state = result.remaining;
                 if(result.ast != undefined) {
@@ -316,20 +392,34 @@ function sequence() {
         if(i == parsers.length) {
             cached = make_result(state, matched, ast);
         }
-        else
+        else {   // TODO: proper partial results, for useful error messages
+            if (trace && i>0) {
+              log('partial parse on line '+state.line+':'+parsers);
+              log('matched '+matched);
+              log('parsing '+parser);
+              log('remaining '+state.substring(0,30));
+            } 
             cached = false;
+        }
         savedState.putCached(pid, cached);
         return cached;
     };
+    parser.toString = function () { return "sequence("+(depth++>max_depth?"...":parsers)+")"; };
+    return parser;
 }
 
 // Like sequence, but ignores whitespace between individual parsers.
 function wsequence() {
-    var parsers = [];
+    var parsers = [],args = [];
     for(var i=0; i < arguments.length; ++i) {
+        args.push(toParser(arguments[i]));
         parsers.push(whitespace(toParser(arguments[i])));
     }
-    return sequence.apply(null, parsers);
+    var parser = sequence.apply(null, parsers);
+    parser.toString = function () {
+      return "wsequence("+(depth++>max_depth?"...":args)+")";
+    };
+    return parser;
 }
 
 // 'choice' is a parser combinator that provides a choice between other parsers.
@@ -341,7 +431,7 @@ function choice() {
     for(var i = 0; i < arguments.length; ++i)
         parsers.push(toParser(arguments[i]));
     var pid = parser_id++;
-    return function(state) {
+    var parser = rule("pc.choice("+parsers+")",function(state) {
         var savedState = state;
         var cached = savedState.getCached(pid);
         if(cached) {
@@ -361,7 +451,9 @@ function choice() {
             cached = result;
         savedState.putCached(pid, cached);
         return cached;
-    }
+    });
+    parser.toString = function () { return "choice("+(depth++>max_depth?"...":parsers)+")"; };
+    return parser;
 }
 
 // 'butnot' is a parser combinator that takes two parsers, 'p1' and 'p2'.
@@ -375,7 +467,7 @@ function butnot(p1,p2) {
 
     // match a but not b. if both match and b's matched text is shorter
     // than a's, a failed match is made
-    return function(state) {
+    var parser = function(state) {
         var savedState = state;
         var cached = savedState.getCached(pid);
         if(cached)
@@ -393,7 +485,14 @@ function butnot(p1,p2) {
         }
         savedState.putCached(pid, cached);
         return cached;
-    }
+    };
+    parser.toString = function () { var p1s="...",p2s="...";
+                                    if (depth++<=max_depth) {
+                                      p1s = p1.toString();
+                                      p2s = p2.toString();
+                                    }
+                                    return "butnot("+p1s+","+p2s+")"; };
+    return parser;
 }
 
 // 'difference' is a parser combinator that takes two parsers, 'p1' and 'p2'.
@@ -406,7 +505,7 @@ function difference(p1,p2) {
 
     // match a but not b. if both match and b's matched text is shorter
     // than a's, a successfull match is made
-    return function(state) {
+    var parser = function(state) {
         var savedState = state;
         var cached = savedState.getCached(pid);
         if(cached)
@@ -424,7 +523,14 @@ function difference(p1,p2) {
         }
         savedState.putCached(pid, cached);
         return cached;
-    }
+    };
+    parser.toString = function () { var p1s="...",p2s="...";
+                                    if (depth++<=max_depth) {
+                                      p1s = p1.toString();
+                                      p2s = p2.toString();
+                                    }
+                                    return "difference("+p1s+","+p2s+")"; };
+    return parser;
 }
 
 
@@ -437,7 +543,7 @@ function xor(p1, p2) {
     var pid = parser_id++;
 
     // match a or b but not both
-    return function(state) {
+    var parser = function(state) {
         var savedState = state;
         var cached = savedState.getCached(pid);
         if(cached)
@@ -451,7 +557,14 @@ function xor(p1, p2) {
             cached = ar || br;
         savedState.putCached(pid, cached);
         return cached;
-    }
+    };
+    parser.toString = function () { var p1s="...",p2s="...";
+                                    if (depth++<=max_depth) {
+                                      p1s = p1.toString();
+                                      p2s = p2.toString();
+                                    }
+                                    return "xor("+p1s+","+p2s+")"; };
+    return parser;
 }
 
 // A parser combinator that takes one parser. It returns a parser that
@@ -460,7 +573,7 @@ function repeat0(p) {
     var p = toParser(p);
     var pid = parser_id++;
 
-    return function(state) {
+    var parser = function(state) {
         var savedState = state;
         var cached = savedState.getCached(pid);
         if(cached) {
@@ -480,7 +593,9 @@ function repeat0(p) {
         cached = make_result(state, matched, ast);
         savedState.putCached(pid, cached);
         return cached;
-    }
+    };
+    parser.toString = function () { return "repeat0("+(depth++>max_depth?"...":p)+")"; };
+    return parser;
 }
 
 // A parser combinator that takes one parser. It returns a parser that
@@ -489,7 +604,7 @@ function repeat1(p) {
     var p = toParser(p);
     var pid = parser_id++;
 
-    return function(state) {
+    var parser = function(state) {
         var savedState = state;
         var cached = savedState.getCached(pid);
         if(cached)
@@ -513,7 +628,9 @@ function repeat1(p) {
         }
         savedState.putCached(pid, cached);
         return cached;
-    }
+    };
+    parser.toString = function () { return "repeat1("+(depth++>max_depth?"...":p)+")"; };
+    return parser;
 }
 
 // A parser combinator that takes one parser. It returns a parser that
@@ -521,7 +638,7 @@ function repeat1(p) {
 function optional(p) {
     var p = toParser(p);
     var pid = parser_id++;
-    return function(state) {
+    var parser = function(state) {
         var savedState = state;
         var cached = savedState.getCached(pid);
         if(cached)
@@ -530,7 +647,9 @@ function optional(p) {
         cached = r || make_result(state, "", false);
         savedState.putCached(pid, cached);
         return cached;
-    }
+    };
+    parser.toString = function () { return "optional("+(depth++>max_depth?"...":p)+")"; };
+    return parser;
 }
 
 // A parser combinator that ensures that the given parser succeeds but
@@ -544,8 +663,17 @@ function expect(p) {
 function chain(p, s, f) {
     var p = toParser(p);
 
-    return action(sequence(p, repeat0(action(sequence(s, p), f))),
+    var parser = action(sequence(p, repeat0(action(sequence(s, p), f))),
                   function(ast) { return [ast[0]].concat(ast[1]); });
+    parser.toString = function() {
+      var ps="...",ss="...";
+      if (depth++<=max_depth) {
+        ps = p.toString();
+        ss = s.toString();
+      }
+      return "chain("+ps+","+ss+","+f+")";
+    };
+    return parser;
 }
 
 // A parser combinator to do left chaining and evaluation. Like 'chain', it expects a parser
@@ -555,17 +683,33 @@ function chain(p, s, f) {
 // parser.
 function chainl(p, s) {
     var p = toParser(p);
-    return action(sequence(p, repeat0(sequence(s, p))),
+    var parser = action(sequence(p, repeat0(sequence(s, p))),
                   function(ast) {
                       return foldl(function(v, action) { return action[0](v, action[1]); }, ast[0], ast[1]);
                   });
+    parser.toString = function() {
+      var ps="...",ss="...";
+      if (depth++<=max_depth) {
+        ps = p.toString();
+        ss = s.toString();
+      }
+      return "chainl("+ps+","+ss+")";
+    };
+    return parser;
 }
 
 // A parser combinator that returns a parser that matches lists of things. The parser to
 // match the list item and the parser to match the seperator need to
 // be provided. The AST is the array of matched items.
 function list(p, s) {
-    return chain(p, s, function(ast) { return ast[1]; });
+    var parser = chain(p, s, function(ast) { return ast[1]; });
+    parser.toString = function () { var ps="...",ss="...";
+                                    if (depth++<=max_depth) {
+                                      ps = p.toString();
+                                      ss = s.toString();
+                                    }
+                                    return "list("+ps+","+ss+")"; };
+    return parser;
 }
 
 // Like list, but ignores whitespace between individual parsers.
@@ -582,12 +726,12 @@ function epsilon_p(state) {
     return make_result(state, "", undefined);
 }
 
-// Allows attaching of a function anywhere in the grammer. If the function returns
+// Allows attaching of a function anywhere in the grammar. If the function returns
 // true then parse succeeds otherwise it fails. Can be used for testing if a symbol
 // is in the symbol table, etc.
 function semantic(f) {
     var pid = parser_id++;
-    return function(state) {
+    var parser = function(state) {
         var savedState = state;
         var cached = savedState.getCached(pid);
         if(cached)
@@ -595,7 +739,9 @@ function semantic(f) {
         cached = f() ? make_result(state, "", undefined) : false;
         savedState.putCached(pid, cached);
         return cached;
-    }
+    };
+    parser.toString = function () { return "semantic("+f+")"; };
+    return parser;
 }
 
 // The and predicate asserts that a certain conditional
@@ -608,7 +754,7 @@ function semantic(f) {
 function and(p) {
     var p = toParser(p);
     var pid = parser_id++;
-    return function(state) {
+    var parser = function(state) {
         var savedState = state;
         var cached = savedState.getCached(pid);
         if(cached)
@@ -617,7 +763,9 @@ function and(p) {
         cached = r ? make_result(state, "", undefined) : false;
         savedState.putCached(pid, cached);
         return cached;
-    }
+    };
+    parser.toString = function () { return "and("+(depth++>max_depth?"...":p)+")"; };
+    return parser;
 }
 
 // The opposite of 'and'. It fails if 'p' succeeds and succeeds if
@@ -637,7 +785,7 @@ function and(p) {
 function not(p) {
     var p = toParser(p);
     var pid = parser_id++;
-    return function(state) {
+    var parser = function(state) {
         var savedState = state;
         var cached = savedState.getCached(pid);
         if(cached)
@@ -645,7 +793,80 @@ function not(p) {
         cached = p(state) ? false : make_result(state, "", undefined);
         savedState.putCached(pid, cached);
         return cached;
-    }
+    };
+    parser.toString = function () { return "not("+(depth++>max_depth?"...":p)+")"; };
+    return parser;
 }
 
+var rules = {}, listrules = [], nesting = '';
 
+function rule(name,p) {
+  var parser = function(state) {
+    if (trace && name.match(trace) && (!no_trace || !name.match(no_trace))) {
+      var input = state.substring(0,30);
+      log(nesting+'>'+name+"("+state.line+"/"+state.index+")["
+          +input.split(/\r\n|\r|\n/)[0]+"]");
+      nesting+='|'; 
+        var r = p(state); 
+      nesting=nesting.substring(1);
+      log(nesting+'<'+name+"("+state.line+"/"+state.index+") = '"+(r ? r.matched : r)+"'");
+      if (r && r.matched.substring(0,30)!==input.substring(0,r.matched.length))
+        log('WARNING: possibly bogus parser return');
+    } else
+        var r = p(state); 
+    return r;
+  };
+  parser.toString = function () {
+    if (!rules[name]) {
+      rules[name] = true;
+      listrules.push(name);
+      var ps = (depth++>max_depth?"...":p.toString());
+      rules[name] = name+" = "+ps;
+    }
+    return name;
+  };
+  return parser;
+}
+
+function log_rules(log,rule) {
+  rule.toString(); // TODO: don't (ab)use toString?
+  for (var r=listrules.length-1; r>=0; r--) log("\n"+rules[listrules[r]]);
+}
+
+return {
+  ps : ps,
+  token : token,
+  ch : ch,
+  range : range,
+  whitespace : whitespace,
+  action : action,
+  join_action : join_action,
+  left_factor_action : left_factor_action,
+  negate : negate,
+  end_p : end_p,
+  nothing_p : nothing_p,
+  sequence : sequence,
+  wsequence : wsequence,
+  choice : choice,
+  butnot : butnot,
+  difference : difference,
+  xor : xor,
+  repeat0 : repeat0,
+  repeat1 : repeat1,
+  optional : optional,
+  expect : expect,
+  chain : chain,
+  chainl : chainl,
+  list : list,
+  wlist : wlist,
+  epsilon_p : epsilon_p,
+  semantic : semantic,
+  and : and,
+  not : not,
+  rule : rule,
+  log_rules : log_rules,
+  set_trace : set_trace,
+  set_debug : set_debug
+  };
+
+}());

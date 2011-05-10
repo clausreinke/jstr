@@ -1,0 +1,30 @@
+<job id="test">
+  <script language="JScript">
+
+    function log(msg) { WScript.StdOut.WriteLine(msg); }
+
+    var fso = new ActiveXObject('Scripting.FileSystemObject');
+
+    function load(file) {
+      var f = fso.OpenTextFile(file);
+      var contents = f.ReadAll();
+      f.close();
+      return contents;
+    }
+
+    var file = WScript.Arguments.length>0 ? 
+                WScript.Arguments.Item(0) : "test_inputs/test_input.js";
+    var opts = WScript.Arguments.length>1 ? 
+                WScript.Arguments.Item(1) : "mpr";
+
+  </script>
+  <script language="JScript" src="jsparse.js"/>
+  <script language="JScript" src="es5.js"/>
+  <script language="JScript" src="test.js"/>
+
+  <script language="JScript">
+
+  test(file,opts,pc,grammar(pc));
+
+  </script>
+</job>

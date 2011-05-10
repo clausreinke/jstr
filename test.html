@@ -1,0 +1,36 @@
+<html>
+<head>
+<title></title>
+
+<script>
+
+function log(msg) { console.log(msg); }
+
+function load(file) {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET',file,false);
+  xhr.send(null);
+  return xhr.responseText;
+}
+
+var file = "test_inputs/test_input.js";
+var opts = "mpr";
+
+</script>
+
+<script language="javascript" src="jsparse.js"></script>
+<script language="javascript" src="es5.js"></script>
+<script language="javascript" src="test.js"></script>
+
+<script>
+
+  test(file,opts,pc,grammar(pc));
+
+</script>
+
+</head>
+
+<body>
+
+</body>
+</html>
