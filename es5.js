@@ -75,6 +75,7 @@ var LineTerminatorSequence =
     LineTerminator; // TODO: separate these two?
 
 var MultiLineCommentChars = function(input) { return MultiLineCommentChars(input); };
+var PostAsteriskCommentChars = function(input) { return PostAsteriskCommentChars(input); };
 
 var MultiLineNotAsteriskChar = negate("*");
 var MultiLineNotForwardSlashOrAsteriskChar = negate(choice("/","*"));
@@ -555,6 +556,7 @@ var PrimaryExpression =
 var SourceElement = rule("SourceElement",choice(Statement, FunctionDeclaration));
 var Program = rule("Program",repeat0(SourceElement));
 
-return {Program : Program };
+return {Program : Program };  // TODO: how much else to expose here?
+                              //        won't we end up wanting everything?
 
 };
