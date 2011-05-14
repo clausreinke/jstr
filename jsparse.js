@@ -62,7 +62,7 @@ ParseState.prototype.from = function(index,s) {
 };
 
 ParseState.prototype.substring = function(start, end) {
-    return this.input.substring(start + this.index, (end || this.length) + this.index);
+    return this.input.substring(start + this.index, (end==null ? this.length : end) + this.index);
 };
 
 ParseState.prototype.trimLeft = function() {
