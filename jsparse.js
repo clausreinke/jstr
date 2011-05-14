@@ -113,8 +113,29 @@ function ps(str) {
 // 'matched' is the portion of the string that
 // was successfully matched by the parser.
 // 'ast' is the AST returned by the successfull parse.
-function make_result(r, matched, ast) {
-        return { remaining: r, matched: matched, ast: ast };
+// 'longest' is a partial parse result if there was one 
+// longer than the successful parse
+function make_result(r, matched, ast, longest) {
+        return { remaining: r, matched: matched, ast: ast, success: true, longest: longest };
+}
+
+// select longest of two partial parses
+function longest(res1,res2) {
+  if (!res1) return res2;
+  if (!res2) return res1;
+  if (res1.remaining.index<res2.remaining.index)
+    return res2;
+  else
+    return res1;
+}
+
+// 'r' is the remaining string to be parsed.
+// 'matched' is the portion of the string that
+// was successfully matched by the parser.
+// 'ast' is the AST returned by the partially successfull parse.
+// 'msg' is the error message terminating the partial parse
+function make_partial_result(r, matched, ast, msg) {
+        return { remaining: r, matched: matched, ast: ast, success: false, msg: msg };
 }
 
 var parser_id = 0;
@@ -123,7 +144,7 @@ var parser_id = 0;
 // that parses that string value. The AST contains the string that was parsed.
 function token(s) {
     var pid = parser_id++;
-    var parser = function(state) {
+    var parser = rule("pc.token("+s+")",function(state) {
         var savedState = state;
         var cached = savedState.getCached(pid);
         if(cached)
@@ -131,12 +152,12 @@ function token(s) {
 
         var r = state.length >= s.length && state.substring(0,s.length) == s;
         if(r) {
-            cached = { remaining: state.from(s.length,s), matched: s, ast: s };
+            cached = { remaining: state.from(s.length,s), matched: s, ast: s, success: true };
         } else
             cached = false;
         savedState.putCached(pid, cached);
         return cached;
-    };
+    });
     parser.toString = function() { return "token(\""+s+"\")"; };
     return parser;
 }
@@ -152,7 +173,7 @@ function ch(c) {
             return cached;
         var r = state.length >= 1 && state.at(0) == c;
         if(r) {
-            cached = { remaining: state.from(1,c), matched: c, ast: c };
+            cached = { remaining: state.from(1,c), matched: c, ast: c, success: true };
         } else
             cached = false;
         savedState.putCached(pid, cached);
@@ -178,7 +199,7 @@ function range(lower, upper) {
         else {
             var ch = state.at(0);
             if(ch >= lower && ch <= upper)
-                cached = { remaining: state.from(1,ch), matched: ch, ast: ch };
+                cached = { remaining: state.from(1,ch), matched: ch, ast: ch, success: true };
             else
                 cached = false;
         }
@@ -216,6 +237,7 @@ function whitespace(p) {
         if(cached)
             return cached;
 
+        // TODO: we assume that trim always succeeds..
         var trimmed = whitespace.trim(state);
 
         // allow trace control in comments
@@ -235,13 +257,14 @@ function whitespace(p) {
         }
 
         var result = p(trimmed.remaining);
-        if (result) 
+        if (result && result.success)
           cached = make_result(result.remaining,
-                               trimmed.matched + result.matched,
-                               [trimmed.ast, result.ast]
+                               trimmed.matched + (result.matched||""),
+                               [trimmed.ast, result.ast],
+                               result.longest
                               );
         else
-          cached = false;
+          cached = result;
         savedState.putCached(pid, cached);
         return cached;
     });
@@ -263,12 +286,12 @@ function action(p, f) {
             return cached;
 
         var x = p(state);
-        if(x) {
+        if(x && x.success) {
             x.ast = f(x.ast);
             cached = x;
         }
         else {
-            cached = false;
+            cached = x;
         }
         savedState.putCached(pid, cached);
         return cached;
@@ -328,10 +351,10 @@ function negate(p) {
 
         if(state.length >= 1) {
             var r = p(state);
-            if(!r) {
+            if(!(r && r.success)) {
                 cached =  make_result(state.from(1,state.at(0)), state.at(0), state.at(0));
             } else
-                cached = false;
+                cached = false; // TODO: any use of partial result here?
         }
         else {
             cached = false;
@@ -350,6 +373,7 @@ function end_p(state) {
     else
         return false;
 }
+end_p.toString = function() { return "end_p"; };
 
 // 'nothing_p' is a parser that always fails.
 function nothing_p(state) {
@@ -364,7 +388,7 @@ function sequence() {
     for(var i = 0; i < arguments.length; ++i)
         parsers.push(toParser(arguments[i]));
     var pid = parser_id++;
-    var parser = function(state) {
+    var parser = rule("pc.sequence("+parsers+")",function(state) {
         var savedState = state;
         var cached = savedState.getCached(pid);
         if(cached) {
@@ -374,36 +398,46 @@ function sequence() {
         var ast = [];
         var matched = "";
         var i;
+        var partial;
         for(i=0; i< parsers.length; ++i) {
             var parser = parsers[i];
             var result = parser(state);
             // log('sequence.'+i+': '+parser+' = '+result);
             if(result) {
+              partial = longest(partial,result.longest);
+              if(result.success) {
                 state = result.remaining;
                 if(result.ast != undefined) {
                     ast.push(result.ast);
-                    matched = matched + result.matched;
+                    matched = matched + (result.matched||"");
                 }
-            }
-            else {
+              } else {
+                partial = longest(partial,result);
+                break;
+              }
+            } else {
                 break;
             }
         }
         if(i == parsers.length) {
-            cached = make_result(state, matched, ast);
+            cached = make_result(state, matched, ast, partial);
         }
         else {   // TODO: proper partial results, for useful error messages
-            if (trace && i>0) {
-              log('partial parse on line '+state.line+':'+parsers);
-              log('matched '+matched);
-              log('parsing '+parser);
-              log('remaining '+state.substring(0,30));
-            } 
-            cached = false;
+            if (i>0) {
+              var msg = ['partial parse ('+state.line+"/"+state.index+'):'+parsers
+                        ,'matched '+matched
+                        ,'parsing '+parser
+                        ,'remaining '+state.substring(0,30)].join("\n");
+              if (trace) {
+                log(msg);
+              } 
+              cached = longest(partial,make_partial_result(state, matched, ast, msg));
+            } else
+              cached = partial;
         }
         savedState.putCached(pid, cached);
         return cached;
-    };
+    });
     parser.toString = function () { return "sequence("+(depth++>max_depth?"...":parsers)+")"; };
     return parser;
 }
@@ -438,15 +472,22 @@ function choice() {
             return cached;
         }
         var i;
+        var partial = false;
         for(i=0; i< parsers.length; ++i) {
             var parser=parsers[i];
             var result = parser(state);
             if(result) {
+              if(result.success) {
+                result = make_result(result.remaining,result.matched,result.ast
+                                    ,longest(result.longest,partial));
                 break;
+              } else {
+                partial = longest(partial,result);
+              }
             }
         }
         if(i == parsers.length)
-            cached = false;
+            cached = partial;
         else
             cached = result;
         savedState.putCached(pid, cached);
@@ -473,15 +514,16 @@ function butnot(p1,p2) {
         if(cached)
             return cached;
 
+        // TODO: no need to run p2 if p1 fails, right?
         var br = p2(state);
-        if(!br) {
+        if(!(br && br.success)) {
             cached = p1(state);
         } else {
             var ar = p1(state);
-            if(ar.matched.length > br.matched.length)
+            if(ar && ar.success && (ar.matched.length > br.matched.length))
                 cached = ar;
             else
-                cached = false;
+                cached = false; // TODO: use of partial result?
         }
         savedState.putCached(pid, cached);
         return cached;
@@ -552,10 +594,10 @@ function xor(p1, p2) {
 
         var ar = p1(state);
         var br = p2(state);
-        if(ar && br)
-            cached = false;
+        if(ar && ar.success && br && br.success)
+            cached = false; // TODO: use of partial result?
         else
-            cached = ar || br;
+            cached = (ar && ar.success) ? ar : br;
         savedState.putCached(pid, cached);
         return cached;
     };
@@ -584,14 +626,18 @@ function repeat0(p) {
         var ast = [];
         var matched = "";
         var result;
-        while(result = p(state)) {
+        var partial;
+        while((result = p(state)) && result.success) {
             ast.push(result.ast);
             matched = matched + result.matched;
+            partial = longest(partial,result.longest);
             if(result.remaining.index == state.index)
                 break;
             state = result.remaining;
         }
-        cached = make_result(state, matched, ast);
+        if (result && !result.success)
+          partial = longest(partial,longest(result,result.longest));
+        cached = make_result(state, matched, ast, partial);
         savedState.putCached(pid, cached);
         return cached;
     };
@@ -614,10 +660,10 @@ function repeat1(p) {
         var ast = [];
         var matched = "";
         var result= p(state);
-        if(!result)
-            cached = false;
+        if(!(result && result.success))
+            cached = result;
         else {
-            while(result) {
+            while(result && result.success) {
                 ast.push(result.ast);
                 matched = matched + result.matched;
                 if(result.remaining.index == state.index)
@@ -639,16 +685,16 @@ function repeat1(p) {
 function optional(p) {
     var p = toParser(p);
     var pid = parser_id++;
-    var parser = function(state) {
+    var parser = rule("pc.optional("+p+")",function(state) {
         var savedState = state;
         var cached = savedState.getCached(pid);
         if(cached)
             return cached;
         var r = p(state);
-        cached = r || make_result(state, "", false);
+        cached = (r && r.success) ? r : make_result(state, "", false, r&&longest(r,r.longest));
         savedState.putCached(pid, cached);
         return cached;
-    };
+    });
     parser.toString = function () { return "optional("+(depth++>max_depth?"...":p)+")"; };
     return parser;
 }
@@ -761,7 +807,7 @@ function and(p) {
         if(cached)
             return cached;
         var r = p(state);
-        cached = r ? make_result(state, "", undefined) : false;
+        cached = (r && r.success) ? make_result(state, "", undefined) : r;
         savedState.putCached(pid, cached);
         return cached;
     };
@@ -791,7 +837,9 @@ function not(p) {
         var cached = savedState.getCached(pid);
         if(cached)
             return cached;
-        cached = p(state) ? false : make_result(state, "", undefined);
+        var r = p(state);
+        cached = (r && r.success) ? false : make_result(state, "", undefined);
+          // TODO: use of partial result?
         savedState.putCached(pid, cached);
         return cached;
     };
@@ -802,7 +850,7 @@ function not(p) {
 var rules = {}, listrules = [], nesting = '';
 
 function rule(name,p) {
-  var parser = function(state) {
+  var parser = function(state) { debugger;
     if (trace && name.match(trace) && (!no_trace || !name.match(no_trace))) {
       var input = state.substring(0,30);
       log(nesting+'>'+name+"("+state.line+"/"+state.index+")["
@@ -810,9 +858,15 @@ function rule(name,p) {
       nesting+='|'; 
         var r = p(state); 
       nesting=nesting.substring(1);
-      log(nesting+'<'+name+"("+state.line+"/"+state.index+") = '"+(r ? r.matched : r)+"'");
-      if (r && r.matched.substring(0,30)!==input.substring(0,r.matched.length))
-        log('WARNING: possibly bogus parser return');
+      log(nesting+'<'+name+"("+state.line+"/"+state.index+")"
+          +(r ? (r.success 
+                 ? " = "
+                 : " [partial"+r.remaining.line+"/"+r.remaining.index+"] = ")
+                +r.matched
+              : "[failed]"));
+      if (r && r.success && r.matched && r.matched.substring(0,30)!==input.substring(0,r.matched.length))
+        log('WARNING: possibly bogus parser return '+r.matched.length);
+      // if (r && !r.success) log('remaining.index: '+r.remaining.index);
     } else
         var r = p(state); 
     return r;
