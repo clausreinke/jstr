@@ -14,7 +14,7 @@ function load(file) {
 }
 
 var file = "test_inputs/test_input.js";
-var opts = "mpr";
+var opts = "p";
 
 </script>
 
@@ -24,7 +24,10 @@ var opts = "mpr";
 
 <script>
 
-  test(file,opts,pc,grammar(pc));
+  if (opts.match(/s/))
+    tests(test,opts,pc,grammar(pc));
+  else
+    test(file,opts,pc,grammar(pc));
 
 </script>
 

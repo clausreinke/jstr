@@ -15,16 +15,20 @@
     var file = WScript.Arguments.length>0 ? 
                 WScript.Arguments.Item(0) : "test_inputs/test_input.js";
     var opts = WScript.Arguments.length>1 ? 
-                WScript.Arguments.Item(1) : "mpr";
+                WScript.Arguments.Item(1) : "p";
 
   </script>
   <script language="JScript" src="jsparse.js"/>
   <script language="JScript" src="es5.js"/>
   <script language="JScript" src="test.js"/>
+  <script language="JScript" src="tests.js"/>
 
   <script language="JScript">
 
-  test(file,opts,pc,grammar(pc));
+  if (opts.match(/s/))
+    tests(test,opts,pc,grammar(pc));
+  else
+    test(file,opts,pc,grammar(pc));
 
   </script>
 </job>
