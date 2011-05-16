@@ -53,6 +53,7 @@ var optional = pc.optional;
 var list = pc.list;
 var wlist = pc.wlist;
 var not = pc.not;
+var epsilon_p = pc.epsilon_p;
 var rule = pc.rule;
 
 // Forward Declarations
@@ -66,6 +67,18 @@ var Statement =
     function(input) { return Statement(input); };
 var LeftHandSideExpression = 
     function(input) { return LeftHandSideExpression(input); };
+
+// ASI, in progress
+// need to extract NLs from whitespace
+// (remembering NLs avoids making whitespace calls explicit,
+//  but explicit whitespace/NL handling would be better,
+//  to avoid grammar-specific additions to pc lib?)
+var NLTH = rule("NLTH",function(input) { // fail if NL
+                        if (input.NL)
+                          nothing_p(input);
+                        else
+                          epsilon_p(input); });
+var SEMI = rule("SEMI",choice(";",not(NLTH))); // need restrictions: only if NL, ..
 
 var Whitespace = 
     choice("\t", " ");
@@ -276,10 +289,10 @@ var VariableDeclaration =
 var VariableDeclarationList = 
     rule("VariableDeclarationList",wlist(VariableDeclaration, ","));	      
 var VariableStatement = 
-    rule("VariableStatement",wsequence("var", VariableDeclarationList,";"));
+    rule("VariableStatement",wsequence("var", VariableDeclarationList,SEMI));
 
 var EmptyStatement = 
-    rule("EmptyStatement",whitespace(token(";")));
+    rule("EmptyStatement",whitespace(token(SEMI)));
 
 var IfStatement = 
     rule("IfStatement",
@@ -288,7 +301,7 @@ var IfStatement =
 
 var IterationStatement =
     rule("IterationStatement",
-    choice(wsequence("do", Statement, "while", "(", Expression, ")", ";"),
+    choice(wsequence("do", Statement, "while", "(", Expression, ")", SEMI),
       wsequence("while", "(", Expression, ")", Statement),
       wsequence("for", "(", optional(Expression), ";", optional(Expression), ";", optional(Expression), ")", Statement),
       wsequence("for", "(", "var", VariableDeclarationList, ";", optional(Expression), ";", optional(Expression), ")", Statement),
@@ -296,11 +309,14 @@ var IterationStatement =
       wsequence("for", "(", "var", VariableDeclaration, "in", Expression, ")", Statement)));
 
 var ContinueStatement = 
-    rule("ContinueStatement",wsequence("continue", optional(Identifier), ";"));
+    rule("ContinueStatement",choice(wsequence("continue", SEMI),
+                                    wsequence("continue", NLTH, optional(Identifier), SEMI)));
 var BreakStatement = 
-    rule("BreakStatement",wsequence("break", optional(Identifier), ";"));
+    rule("BreakStatement",choice(wsequence("break", SEMI),
+                                 wsequence("break", NLTH, optional(Identifier), SEMI)));
 var ReturnStatement = 
-    rule("ReturnStatement",wsequence("return", optional(Expression), ";"));
+    rule("ReturnStatement",choice(wsequence("return", SEMI),
+                                  wsequence("return", NLTH, optional(Expression), SEMI)));
 var WithStatement = 
     rule("WithStatement",wsequence("with", "(", Expression, ")", Statement));
 
@@ -319,7 +335,7 @@ var SwitchStatement =
 var LabelledStatement = 
     rule("LabelledStatement",wsequence(Identifier, ":", Statement));
 var ThrowStatement = 
-    rule("ThrowStatement",wsequence("throw", Expression, ";"));
+    rule("ThrowStatement", wsequence("throw", NLTH, Expression, SEMI));
 
 var Catch = rule("Catch",wsequence("catch", "(", Identifier, ")", Block));
 var Finally = rule("Finally",wsequence("finally", Block));
@@ -328,11 +344,12 @@ var TryStatement =
     choice(wsequence("try", Block, Catch),
       wsequence("try", Block, Finally),
       wsequence("try", Block, Catch, Finally)));
+var DebuggerStatement = rule("DebuggerStatement",wsequence("debugger",SEMI));
 
 var ExpressionStatement = 
     rule("ExpressionStatement",
     choice(sequence(choice("{", "function"), nothing_p),
-      sequence(Expression,";")));
+      sequence(Expression,SEMI)));
 var Statement = 
     rule("Statement",
     choice(Block,
@@ -348,7 +365,8 @@ var Statement =
       WithStatement,
       SwitchStatement,
       ThrowStatement,
-      TryStatement));
+      TryStatement,
+      DebuggerStatement));
 
 var FunctionDeclaration = 
     function(input) { return FunctionDeclaration(input); };
@@ -445,8 +463,8 @@ var PostfixExpression =
 
 var PostfixExpression =
     rule("PostfixExpression",
-    choice(wsequence(LeftHandSideExpression, "++"),
-      wsequence(LeftHandSideExpression, "--"),
+    choice(wsequence(LeftHandSideExpression, NLTH, "++"),
+      wsequence(LeftHandSideExpression, NLTH, "--"),
       LeftHandSideExpression));
 
 var UnaryExpression =

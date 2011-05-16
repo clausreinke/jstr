@@ -37,8 +37,10 @@ var test = function(file,opts,pc,grammar,testcase){
         }
         log('------------------------');
         parsed.remaining && log('pos.line: '+parsed.remaining.line);
-        log('msg: '+parsed.msg);
-        parsed.longest && log('longest.msg: '+parsed.longest.msg);
+        if (!(parsed && parsed.success)) {
+          log('msg: '+parsed.msg);
+          parsed.longest && log('longest.msg: '+parsed.longest.msg);
+        }
       }
 
       log((parsed && parsed.success ? 'success' : 'fail')

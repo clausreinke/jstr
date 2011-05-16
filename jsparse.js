@@ -44,13 +44,18 @@ function ParseState(input, index, line) {
     this.index = index || 0;
     this.length = input.length - this.index;
     this.cache = { };
-    this.line  = line || 1;
+    this.line  = line || 1; // line number
+    this.NL = false;  // linebreak in previous token?
     return this;
 }
 
 ParseState.prototype.incLine = function(s) {
   var nls = s.match(/(\r\n|\r|\n)/g);
-  if (nls) this.line += nls.length;
+  if (nls) {
+    this.line += nls.length;
+    this.NL = nls.length > 0;
+  } else
+    this.NL = false;
 };
 
 ParseState.prototype.from = function(index,s) {
@@ -68,7 +73,6 @@ ParseState.prototype.substring = function(start, end) {
 ParseState.prototype.trimLeft = function() {
     var s = this.substring(0);
     var m = s.match(/^\s+/);
-    var nls = m.match(/\(\r\n\|\r\|\n\)/g);
     return m ? this.from(m[0].length,m) : this;
 };
 
@@ -850,7 +854,7 @@ function not(p) {
 var rules = {}, listrules = [], nesting = '';
 
 function rule(name,p) {
-  var parser = function(state) { debugger;
+  var parser = function(state) {
     if (trace && name.match(trace) && (!no_trace || !name.match(no_trace))) {
       var input = state.substring(0,30);
       log(nesting+'>'+name+"("+state.line+"/"+state.index+")["
