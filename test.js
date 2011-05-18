@@ -16,11 +16,32 @@ var test = function(file,opts,pc,grammar,testcase){
 
     if (opts.match(/p/)) {
       var parser = pc.sequence(rule,pc.whitespace(pc.end_p));
-      var parsed = parser(pc.ps(src)); // input.js: 366l/5k,
-                                       // jsparse.js: 867l/13k
-                                       // es5.js: 563l/7k,
-                                       // fulljslint: 6856l/114k
-                                       // TODO: too many lines, way too slow
+      var parsed = parser(pc.ps(src)); 
+        // jsparse.js: 867l/13k
+        // jsparse.js(cscript): 937l/26k (+)
+        // jsparse.js(ff4): 937l/2852 (+)
+        // jsparse.js(ie9): 937l/2112 (+)
+        //
+        // es5.js: 563l/7k,
+        // es5.js(cscript): 586l/13k, (+)
+        // es5.js(ff4): 586l/1630, (+)
+        // es5.js(ie9): 586l/1147, (+)
+        //
+        // fulljslint: 6856l/114k
+        // fulljslint(cscript): --/-- OOM! (+)
+        // fulljslint(ff4): 6857l/30k (+)
+        // fulljslint(ie9): 6857l/27k (+)
+        //
+        // read-json.js(cscript): 398l/13k (+) [needs ASI]
+        // read-json.js(ff4): 398l/3356 (+) [needs ASI]
+        // read-json.js(ie9): 398l/1101 (+) [needs ASI]
+        //
+        // TODO: lines still off (often just by one,
+        //         but by 300 for fulljslint.js)
+        //       way too slow (more so with ASI
+        //         and error messages (+))
+        //       uses too much memory now, at least via cscript?
+        //        (how to use ie9 engine for cscript?)
 
       if (parsed) {
         if (opts.match(/m/)) {
