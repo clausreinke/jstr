@@ -109,7 +109,6 @@ ParseState.prototype.putCached = function(pid, cached) {
       p = this.cache[pid] = { };
     p[this.index] = cached;
     if (debug) log("putCached ("+pid+"/"+this.index+") "+(cached?cached.matched:"false"));
-    if (debug) log("TRACKING: "+((this.cache[676]||[])[4]||{}).matched);
 };
 
 function ps(str) {
@@ -626,7 +625,7 @@ function repeat0(p) {
     var p = toParser(p);
     var pid = parser_id++;
 
-    var parser = function(state) {
+    var parser = rule("pc.repeat0("+p+")",function(state) {
         var savedState = state;
         var cached = savedState.getCached(pid);
         if(cached) {
@@ -643,14 +642,14 @@ function repeat0(p) {
             partial = longest(partial,result.longest);
             if(result.remaining.index == state.index)
                 break;
-            state = result.remaining;
+            state = result.remaining; // TODO: copy or not?
         }
         if (result && !result.success)
           partial = longest(partial,longest(result,result.longest));
         cached = make_result(state, matched, ast, partial);
         savedState.putCached(pid, cached);
         return cached;
-    };
+    });
     parser.toString = function () { return "repeat0("+(depth++>max_depth?"...":p)+")"; };
     return parser;
 }
@@ -811,7 +810,7 @@ function semantic(f) {
 function and(p) {
     var p = toParser(p);
     var pid = parser_id++;
-    var parser = function(state) {
+    var parser = rule("pc.and("+p+")",function(state) {
         var savedState = state;
         var cached = savedState.getCached(pid);
         if(cached)
@@ -820,7 +819,7 @@ function and(p) {
         cached = (r && r.success) ? make_result(state, "", undefined) : r;
         savedState.putCached(pid, cached);
         return cached;
-    };
+    });
     parser.toString = function () { return "and("+(depth++>max_depth?"...":p)+")"; };
     return parser;
 }
@@ -842,7 +841,7 @@ function and(p) {
 function not(p) {
     var p = toParser(p);
     var pid = parser_id++;
-    var parser = function(state) {
+    var parser = rule("pc.not("+p+")",function(state) {
         var savedState = state;
         var cached = savedState.getCached(pid);
         if(cached)
@@ -852,7 +851,7 @@ function not(p) {
           // TODO: use of partial result?
         savedState.putCached(pid, cached);
         return cached;
-    };
+    });
     parser.toString = function () { return "not("+(depth++>max_depth?"...":p)+")"; };
     return parser;
 }
