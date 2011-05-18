@@ -27,7 +27,7 @@
 //
 
 // TODO: - check for missing details
-//       - ASI
+//       - ASI (in progress)
 //       - strict mode
 //       - do we need to refine the regexp grammar?
 
@@ -53,6 +53,7 @@ var optional = pc.optional;
 var list = pc.list;
 var wlist = pc.wlist;
 var not = pc.not;
+var and = pc.and;
 var epsilon_p = pc.epsilon_p;
 var rule = pc.rule;
 
@@ -69,16 +70,17 @@ var LeftHandSideExpression =
     function(input) { return LeftHandSideExpression(input); };
 
 // ASI, in progress
-// need to extract NLs from whitespace
 // (remembering NLs avoids making whitespace calls explicit,
 //  but explicit whitespace/NL handling would be better,
 //  to avoid grammar-specific additions to pc lib?)
 var NLTH = rule("NLTH",function(input) { // fail if NL
                         if (input.NL)
-                          nothing_p(input);
+                          return nothing_p(input);
                         else
-                          epsilon_p(input); });
-var SEMI = rule("SEMI",choice(";",not(NLTH))); // need restrictions: only if NL, ..
+                          return epsilon_p(input); });
+var SEMI = rule("SEMI",choice(";", // need restrictions: only if NL, ..
+                              not(NLTH),
+                              and("}")));
 
 var Whitespace = 
     choice("\t", " ");
@@ -292,7 +294,7 @@ var VariableStatement =
     rule("VariableStatement",wsequence("var", VariableDeclarationList,SEMI));
 
 var EmptyStatement = 
-    rule("EmptyStatement",whitespace(token(SEMI)));
+    rule("EmptyStatement",whitespace(token(";"))); // no ASI
 
 var IfStatement = 
     rule("IfStatement",
@@ -316,7 +318,7 @@ var BreakStatement =
                                  wsequence("break", NLTH, optional(Identifier), SEMI)));
 var ReturnStatement = 
     rule("ReturnStatement",choice(wsequence("return", SEMI),
-                                  wsequence("return", NLTH, optional(Expression), SEMI)));
+                                  wsequence("return", NLTH, Expression, SEMI)));
 var WithStatement = 
     rule("WithStatement",wsequence("with", "(", Expression, ")", Statement));
 
@@ -348,15 +350,15 @@ var DebuggerStatement = rule("DebuggerStatement",wsequence("debugger",SEMI));
 
 var ExpressionStatement = 
     rule("ExpressionStatement",
-    choice(sequence(choice("{", "function"), nothing_p),
-      sequence(Expression,SEMI)));
+    choice(wsequence(choice("{", "function"), nothing_p),
+           wsequence(Expression,SEMI)));
 var Statement = 
     rule("Statement",
     choice(Block,
       VariableStatement,
       EmptyStatement,
       LabelledStatement,  // before ExpressionStatement // TODO: avoid fall-through
-      ExpressionStatement,
+      ExpressionStatement,  // awful lot of testing before failure here, eg for 'return ..'
       IfStatement,
       IterationStatement,
       ContinueStatement,
@@ -391,7 +393,7 @@ var FunctionDeclaration =
 var PrimaryExpression = 
     function(input) { return PrimaryExpression(input); };
 
-var ArgumentList = rule("ArgumentList",list(AssignmentExpression, ","));       
+var ArgumentList = rule("ArgumentList",wlist(AssignmentExpression, ","));
 var Arguments = 
     rule("Arguments",
     choice(wsequence("(", ")"),
@@ -402,10 +404,10 @@ var MemberExpression = function(input) { return MemberExpression(input); };
 var MemberExpression =
     rule("MemberExpression",
     left_factor_action(sequence(choice(wsequence("new", MemberExpression, Arguments),
-      PrimaryExpression,
-      FunctionExpression),
-    repeat0(choice(wsequence("[", Expression, "]"),
-     wsequence(".", Identifier))))));
+                                       PrimaryExpression,
+                                       FunctionExpression),
+                                repeat0(choice(wsequence("[", Expression, "]"),
+                                               wsequence(".", Identifier))))));
 
 var NewExpression = function(input) { return NewExpression(input); };
 var NewExpression = 
@@ -414,10 +416,10 @@ var NewExpression =
       wsequence("new", NewExpression)));
 var CallExpression = 
     rule("CallExpression",
-    left_factor_action(wsequence(wsequence(MemberExpression, Arguments),
-      repeat0(choice(Arguments,
-        wsequence("[", Expression, "]"),
-        wsequence(".", Identifier))))));
+    left_factor_action(sequence(wsequence(MemberExpression, Arguments),
+                                repeat0(choice(Arguments,
+                                  wsequence("[", Expression, "]"),
+                                  wsequence(".", Identifier))))));
   
 var LeftHandSideExpression = 
     rule("LeftHandSideExpression",choice(CallExpression, NewExpression));
@@ -482,36 +484,36 @@ var UnaryExpression =
 
 var MultiplicativeExpression =
     rule("MultiplicativeExpression",
-    wsequence(UnaryExpression,
+    sequence(whitespace(UnaryExpression),
       repeat0(choice(wsequence("*", UnaryExpression),
-      wsequence("/", UnaryExpression),
-      wsequence("%", UnaryExpression)))));
+                     wsequence("/", UnaryExpression),
+                     wsequence("%", UnaryExpression)))));
 
 var AdditiveExpression =
     rule("AdditiveExpression",
-    wsequence(MultiplicativeExpression,
+    sequence(MultiplicativeExpression,
       repeat0(choice(wsequence("+", MultiplicativeExpression),
-      wsequence("-", MultiplicativeExpression)))));
+                     wsequence("-", MultiplicativeExpression)))));
 
 var ShiftExpression = 
     rule("ShiftExpression",
-    wsequence(AdditiveExpression,
+    sequence(AdditiveExpression,
       repeat0(choice(wsequence("<<", AdditiveExpression),
-      wsequence(">>", AdditiveExpression),
-      wsequence(">>>", AdditiveExpression)))));
+                     wsequence(">>", AdditiveExpression),
+                     wsequence(">>>", AdditiveExpression)))));
 
 var RelationalExpression =
     rule("RelationalExpression",
-    wsequence(ShiftExpression,
+    sequence(ShiftExpression,
       repeat0(choice(wsequence("<", ShiftExpression),
-      wsequence(">", ShiftExpression),
-      wsequence("<=", ShiftExpression),
-      wsequence(">=", ShiftExpression),
-      wsequence("instanceof", ShiftExpression)))));
+                     wsequence(">", ShiftExpression),
+                     wsequence("<=", ShiftExpression),
+                     wsequence(">=", ShiftExpression),
+                     wsequence("instanceof", ShiftExpression)))));
 
 var EqualityExpression = // TODO: what about the ..NoIn variants?
     rule("EqualityExpression",
-    wsequence(RelationalExpression, 
+    sequence(RelationalExpression, 
       repeat0(choice(wsequence("===", RelationalExpression),
                      wsequence("!==", RelationalExpression),
                      wsequence("==", RelationalExpression),
@@ -519,20 +521,20 @@ var EqualityExpression = // TODO: what about the ..NoIn variants?
 
 var BitwiseANDExpression = 
     rule("BitwiseANDExpression",
-    wsequence(EqualityExpression, repeat0(wsequence("&", EqualityExpression))));
+    sequence(EqualityExpression, repeat0(wsequence("&", EqualityExpression))));
 var BitwiseXORExpression = 
     rule("BitwiseXORExpression",
-    wsequence(BitwiseANDExpression, repeat0(wsequence("^", BitwiseANDExpression))));
+    sequence(BitwiseANDExpression, repeat0(wsequence("^", BitwiseANDExpression))));
 var BitwiseORExpression = 
     rule("BitwiseORExpression",
-    wsequence(BitwiseXORExpression, repeat0(wsequence("|", BitwiseXORExpression))));
+    sequence(BitwiseXORExpression, repeat0(wsequence("|", BitwiseXORExpression))));
 var LogicalANDExpression = 
     rule("LogicalANDExpression",
-    wsequence(BitwiseORExpression, repeat0(wsequence("&&", BitwiseORExpression))));
+    sequence(BitwiseORExpression, repeat0(wsequence("&&", BitwiseORExpression))));
 
 var LogicalORExpression = 
     rule("LogicalORExpression",
-    wsequence(LogicalANDExpression, repeat0(wsequence("||", LogicalANDExpression))));
+    sequence(LogicalANDExpression, repeat0(wsequence("||", LogicalANDExpression))));
 
 var ConditionalExpression = 
     rule("ConditionalExpression",
@@ -544,11 +546,11 @@ var AssignmentExpression =
     choice(wsequence(LeftHandSideExpression, AssignmentOperator, AssignmentExpression),
       ConditionalExpression));
 
-var Expression = rule("Expression",list(AssignmentExpression, ","));
+var Expression = rule("Expression",wlist(AssignmentExpression, ","));
 
 var Elision = rule("Elision",repeat1(",")); 
 var ElementList = 
-    rule("ElementList",list(wsequence(optional(Elision), AssignmentExpression), ","));
+    rule("ElementList",wlist(wsequence(optional(Elision), AssignmentExpression), ","));
 var ArrayLiteral = 
     rule("ArrayLiteral",
     choice(wsequence("[", optional(Elision), "]"),
@@ -558,7 +560,7 @@ var ArrayLiteral =
 var PropertyName = rule("PropertyName",choice(Identifier, StringLiteral, NumericLiteral));
 var PropertyNameAndValueList =
     rule("PropertyNameAndValueList",
-    list(wsequence(PropertyName, ":", AssignmentExpression), ","));
+    wlist(wsequence(PropertyName, ":", AssignmentExpression), ","));
 var ObjectLiteral = 
     rule("ObjectLiteral",
     choice(wsequence("{", "}"),
