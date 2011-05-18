@@ -62,7 +62,10 @@ ParseState.prototype.from = function(index,s) {
     var r = new ParseState(this.input, this.index + index, this.line);
     r.cache = this.cache;
     r.length = this.length - index;
-    r.incLine(s);
+    if (s)
+      r.incLine(s);
+    else
+      r.NL = this.NL;
     return r;
 };
 
@@ -259,6 +262,9 @@ function whitespace(p) {
             no_trace = new RegExp(match[1]);
           }
         }
+
+        // look at trim parser result as a whole
+        if (trimmed.remaining.line>savedState.line) trimmed.remaining.NL = true;
 
         var result = p(trimmed.remaining);
         if (result && result.success)
@@ -479,7 +485,7 @@ function choice() {
         var partial = false;
         for(i=0; i< parsers.length; ++i) {
             var parser=parsers[i];
-            var result = parser(state);
+            var result = parser(state.from(0)); // run on copy
             if(result) {
               if(result.success) {
                 result = make_result(result.remaining,result.matched,result.ast
