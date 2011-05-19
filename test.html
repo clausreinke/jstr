@@ -7,7 +7,8 @@
 function log(msg) { console.log(msg); }
 
 function load(file) {
-  var xhr = new ActiveXObject("Microsoft.XMLHTTP") || new XMLHttpRequest();
+  var xhr = ((typeof ActiveXObject!=="undefined") && new ActiveXObject("Microsoft.XMLHTTP"))
+          || new XMLHttpRequest();
   xhr.open('GET',file,false);
   xhr.send(null);
   return xhr.responseText;
