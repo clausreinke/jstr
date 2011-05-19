@@ -5,6 +5,10 @@ var test = function(file,opts,pc,grammar,testcase){
       for (var l=0; l<lines.length; l++) log(lines[l]);
     }
 
+    function eta(msg) {
+      return msg.replace(/function.input. { return ([^(]*)(\(input\))?; }/g,"$1");
+    }
+
     log('\nprocessing '+file);
     var src = testcase ? testcase.src : load(file);
     var rule = testcase ? testcase.rule : grammar.Program;
@@ -59,8 +63,8 @@ var test = function(file,opts,pc,grammar,testcase){
         log('------------------------');
         parsed.remaining && log('pos.line: '+parsed.remaining.line);
         if (!(parsed && parsed.success)) {
-          log('msg: '+parsed.msg);
-          parsed.longest && log('longest.msg: '+parsed.longest.msg);
+          log('msg: '+eta(parsed.msg));
+          parsed.longest && log('longest.msg: '+eta(parsed.longest.msg));
         }
       }
 
