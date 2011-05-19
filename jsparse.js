@@ -283,7 +283,11 @@ function whitespace(p) {
         }
 
         // look at trim parser result as a whole
-        if (trimmed.remaining.line>savedState.line) trimmed.remaining.NL = true;
+        // and don't lose adjacent whitespace NL info
+        if (trimmed.remaining.line>savedState.line)
+          trimmed.remaining.NL = true;
+        else
+          trimmed.remaining.NL = trimmed.remaining.NL || state.NL;
 
         var result = p(trimmed.remaining);
         if (result && result.success)
