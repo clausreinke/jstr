@@ -125,23 +125,43 @@ function make_result(r, matched, ast, longest) {
         return { remaining: r, matched: matched, ast: ast, success: true, longest: longest };
 }
 
-// select longest of two partial parses
-function longest(res1,res2) {
-  if (!res1) return res2;
-  if (!res2) return res1;
-  if (res1.remaining.index<res2.remaining.index)
-    return res2;
-  else
-    return res1;
-}
-
 // 'r' is the remaining string to be parsed.
 // 'matched' is the portion of the string that
 // was successfully matched by the parser.
 // 'ast' is the AST returned by the partially successfull parse.
 // 'msg' is the error message terminating the partial parse
 function make_partial_result(r, matched, ast, msg) {
-        return { remaining: r, matched: matched, ast: ast, success: false, msg: msg };
+        return { remaining: r, matched: matched, ast: ast, success: false,
+                 msg: msg, depth: depth };
+}
+
+// select longest of two partial parses
+function longest(res1,res2) {
+  // prefer existing
+  if (!res1) return res2;
+  if (!res2) return res1;
+  // prefer longest
+  if (res1.remaining.index<res2.remaining.index)
+    return res2;
+  else if (res1.remaining.index>res2.remaining.index)
+    return res1;
+  // prefer more abstract
+  // TODO: unrelated parses should still be collected,
+  //        but only the most abstract of every class
+  //        (currently, we drop more concrete parses,
+  //         even if they are separate from the one we keep!)
+  else if (res1.depth<res2.depth) 
+    return res1;
+  else if (res2.depth<res1.depth) 
+    return res2;
+  // collect info from equally long partial parses
+  else   {
+    // TODO: - too expensive
+    //       - need context stack to prefer abstract messages
+    //       - duplicate messages suggest grammar ambiguities
+    if (res1.msg.indexOf(res2.msg)===-1) res1.msg += "\n"+res2.msg;
+    return res1
+  }
 }
 
 var parser_id = 0;
@@ -433,8 +453,9 @@ function sequence() {
         }
         else {   // TODO: proper partial results, for useful error messages
             if (i>0) {
-              var msg = ['partial parse ('+state.line+"/"+state.index+'):'+parsers
+              var msg = ['partial parse '+depth+'('+state.line+"/"+state.index+')'
                         ,'matched '+matched
+                        ,'context '+parsers
                         ,'parsing '+parser
                         ,'remaining '+state.substring(0,30)].join("\n");
               if (trace) {
@@ -856,10 +877,11 @@ function not(p) {
     return parser;
 }
 
-var rules = {}, listrules = [], nesting = '';
+var rules = {}, listrules = [], depth = 0, nesting = '';
 
 function rule(name,p) {
   var parser = function(state) {
+    depth++;
     if (trace && name.match(trace) && (!no_trace || !name.match(no_trace))) {
       var input = state.substring(0,30);
       log(nesting+'>'+name+"("+state.line+"/"+state.index+")["
@@ -875,9 +897,9 @@ function rule(name,p) {
               : "[failed]"));
       if (r && r.success && r.matched && r.matched.substring(0,30)!==input.substring(0,r.matched.length))
         log('WARNING: possibly bogus parser return '+r.matched.length);
-      // if (r && !r.success) log('remaining.index: '+r.remaining.index);
     } else
         var r = p(state); 
+    depth--;
     return r;
   };
   parser.toString = function () {
