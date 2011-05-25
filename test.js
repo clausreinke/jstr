@@ -20,25 +20,23 @@ var test = function(file,opts,pc,grammar,testcase){
 
     if (opts.match(/p/)) {
       var parser = pc.sequence(rule,pc.whitespace(pc.end_p));
-      var parsed = parser(pc.ps(src)); 
-        // jsparse.js: 867l/13k
-        // jsparse.js(cscript): 937l/26k (+)
-        // jsparse.js(ff4): 937l/2852 (+)
-        // jsparse.js(ie9): 937l/2112 (+)
+      var input  = pc.ps(src);
+      var parsed = parser(input); 
+        // jsparse.js(cscript): 925l/26k
+        // jsparse.js(ff4): 925l/6k
+        // jsparse.js(ie9): 925l/2.2k
         //
-        // es5.js: 563l/7k,
-        // es5.js(cscript): 586l/13k, (+)
-        // es5.js(ff4): 586l/1630, (+)
-        // es5.js(ie9): 586l/1147, (+)
+        // es5.js(cscript): 586l/14.5k
+        // es5.js(ff4): 586l/3.4k
+        // es5.js(ie9): 586l/1.3k
         //
-        // fulljslint: 6856l/114k
-        // fulljslint(cscript): --/-- OOM! (+)
-        // fulljslint(ff4): 6857l/30k (+)
-        // fulljslint(ie9): 6857l/27k (+)
+        // fulljslint(cscript): 6857l/223.5k
+        // fulljslint(ff4): 6857l/50k
+        // fulljslint(ie9): 6857l/31.5k
         //
-        // read-json.js(cscript): 398l/13k (+) [needs ASI]
-        // read-json.js(ff4): 398l/3356 (+) [needs ASI]
-        // read-json.js(ie9): 398l/1101 (+) [needs ASI]
+        // read-json.js(cscript): 398l/15k [needs ASI]
+        // read-json.js(ff4): 398l/3.5k [needs ASI]
+        // read-json.js(ie9): 398l/1.3k [needs ASI]
         //
         // TODO: lines still off (often just by one,
         //         but by 300 for fulljslint.js)
@@ -62,13 +60,15 @@ var test = function(file,opts,pc,grammar,testcase){
         }
         log('------------------------');
         parsed.remaining && log('pos.line: '+parsed.remaining.line);
-        if (!(parsed && parsed.success)) {
-          log('msg: '+eta(parsed.msg));
-          parsed.longest && log('longest.msg: '+eta(parsed.longest.msg));
-        }
+      }
+      if (!parsed) {
+        var pi = input.partials.length-1;
+        var partials = input.partials[pi];
+        for (var partial_i=0; partial_i<partials.length; partial_i++)
+          log(eta(partials[partial_i].msg));
       }
 
-      log((parsed && parsed.success ? 'success' : 'fail')
+      log((parsed ? 'success' : 'fail')
           +' in '+((new Date()).getTime()-startTime));
     }
 
