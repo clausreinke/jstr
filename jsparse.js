@@ -132,7 +132,7 @@ function make_result(r, matched, ast) {
 // 'msg' is the error message terminating the partial parse
 function make_partial_result(r, matched, ast, msg) {
         return { remaining: r, matched: matched, ast: ast, 
-                 msg: msg, rule_depth: rule_depth };
+                 msg: msg, rule_stack: rule_stack };
 }
 
 var parser_id = 0;
@@ -421,12 +421,13 @@ function sequence() {
             cached = make_result(state, matched, ast);
         }
         else {
-            if (i>0) {
-              var msg = ['partial parse '+rule_depth+'('+state.line+"/"+state.index+')'
-                        ,'matched '+matched
-                        ,'context '+parsers
-                        ,'parsing '+parser
-                        ,'remaining '+state.substring(0,30)].join("\n");
+            if (i>0) { // TODO: colours instead of caps?
+              var msg = ['partial parse (line '+state.line+"/ index "+state.index+')'
+                        ,'STACK '+(stack_pattern ? rule_stack.join('\n  ') : '-')
+                        ,'MATCHED '+matched
+                        ,'CONTEXT '+parsers
+                        ,'PARSING '+parser
+                        ,'REMAINING '+state.substring(0,30)].join("\n");
               if (trace) {
                 log(msg);
               } 
@@ -846,11 +847,14 @@ function not(p) {
     return parser;
 }
 
-var rules = {}, listrules = [], rule_depth = 0, nesting = '';
+var rules = {}, listrules = [], rule_stack = [], nesting = '';
+
+var stack_pattern = null; // /^(?!pc)/;
+function set_stack_pattern(pat) { pat && (stack_pattern = pat); }
 
 function rule(name,p) {
   var parser = function(state) {
-    rule_depth++;
+    rule_stack.push(name.match(stack_pattern) ? name : '-');
     if (trace && name.match(trace) && (!no_trace || !name.match(no_trace))) {
       var input = state.substring(0,30);
       log(nesting+'>'+name+"("+state.line+"/"+state.index+")["
@@ -865,7 +869,7 @@ function rule(name,p) {
         log('WARNING: possibly bogus parser return '+r.matched.length);
     } else
         var r = p(state); 
-    rule_depth--;
+    rule_stack.pop();
     return r;
   };
   parser.toString = function () {
@@ -918,6 +922,7 @@ return {
   rule : rule,
   log_rules : log_rules,
   set_trace : set_trace,
+  set_stack_pattern : set_stack_pattern,
   set_debug : set_debug
   };
 

@@ -17,6 +17,7 @@ var test = function(file,opts,pc,grammar,testcase){
     if (opts.match(/l/)) pc.log_rules(log,rule);
     if (opts.match(/t/)) pc.set_trace(/.*/); //,/^pc\.|white/);
     if (opts.match(/d/)) pc.set_debug(true);
+    if (opts.match(/s/)) pc.set_stack_pattern(/^(?!pc)/);
 
     if (opts.match(/p/)) {
       var parser = pc.sequence(rule,pc.whitespace(pc.end_p));
@@ -65,7 +66,7 @@ var test = function(file,opts,pc,grammar,testcase){
         var pi = input.partials.length-1;
         var partials = input.partials[pi];
         for (var partial_i=0; partial_i<partials.length; partial_i++)
-          log(eta(partials[partial_i].msg));
+          log('\n'+eta(partials[partial_i].msg));
       }
 
       log((parsed ? 'success' : 'fail')
