@@ -132,7 +132,7 @@ function make_result(r, matched, ast) {
 // 'msg' is the error message terminating the partial parse
 function make_partial_result(r, matched, ast, msg) {
         return { remaining: r, matched: matched, ast: ast, 
-                 msg: msg, depth: depth };
+                 msg: msg, rule_depth: rule_depth };
 }
 
 var parser_id = 0;
@@ -422,7 +422,7 @@ function sequence() {
         }
         else {
             if (i>0) {
-              var msg = ['partial parse '+depth+'('+state.line+"/"+state.index+')'
+              var msg = ['partial parse '+rule_depth+'('+state.line+"/"+state.index+')'
                         ,'matched '+matched
                         ,'context '+parsers
                         ,'parsing '+parser
@@ -846,11 +846,11 @@ function not(p) {
     return parser;
 }
 
-var rules = {}, listrules = [], depth = 0, nesting = '';
+var rules = {}, listrules = [], rule_depth = 0, nesting = '';
 
 function rule(name,p) {
   var parser = function(state) {
-    depth++;
+    rule_depth++;
     if (trace && name.match(trace) && (!no_trace || !name.match(no_trace))) {
       var input = state.substring(0,30);
       log(nesting+'>'+name+"("+state.line+"/"+state.index+")["
@@ -865,7 +865,7 @@ function rule(name,p) {
         log('WARNING: possibly bogus parser return '+r.matched.length);
     } else
         var r = p(state); 
-    depth--;
+    rule_depth--;
     return r;
   };
   parser.toString = function () {
