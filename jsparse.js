@@ -233,9 +233,11 @@ function set_trace(include_regex,exclude_regex) {
 
 // Parser combinator that returns a parser that
 // skips whitespace before applying parser.
-// TODO: should this be sequence(whitespace.trim,p)?
-//       if p fails, leading whitespace does not count for partial parse
-//        (and registering a partial parse here would give error msg without context)
+// TODO: - should this be sequence(whitespace.trim,p)?
+//         (would need to inline those extraneous sequences, to avoid
+//          extra complexity and limited error messages from too short partial parses)
+//       - if p fails, leading whitespace does not count for partial parse
+//         (and registering a partial parse here would give error msg without context)
 function whitespace(p) {
     var p = toParser(p);
     var pid = parser_id++;
@@ -393,6 +395,7 @@ end_p.toString = function() { return "end_p"; };
 function nothing_p(state) {
     return false;
 }
+nothing_p.toString = function() { return "nothing_p"; };
 
 // 'sequence' is a parser combinator that processes a number of parsers in sequence.
 // It can take any number of arguments, each one being a parser. The parser that 'sequence'
@@ -431,7 +434,9 @@ function sequence() {
         }
         else {
             if (i>0) { // TODO: colours instead of caps?
-              var msg = ['partial parse (line '+state.line+"/ index "+state.index+')'
+              var msg = ['partial parse (line '+state.line
+                                      +'/ index '+state.index
+                                      +'/ depth '+rule_stack.length+')'
                         ,'STACK '+(stack_pattern ? rule_stack.join('\n  ') : '-')
                         ,'MATCHED '+matched
                         ,'CONTEXT '+parsers
@@ -700,7 +705,7 @@ function optional(p) {
         if(cached)
             return cached;
         var r = p(state);
-        cached = r ? r : make_result(state, "", false);
+        cached = r ? r : make_result(state, "", undefined);
         savedState.putCached(pid, cached);
         return cached;
     });
@@ -781,6 +786,7 @@ function wlist() {
 function epsilon_p(state) {
     return make_result(state, "", undefined);
 }
+epsilon_p.toString = function() { return "epsilon_p"; }
 
 // Allows attaching of a function anywhere in the grammar. If the function returns
 // true then parse succeeds otherwise it fails. Can be used for testing if a symbol
@@ -863,7 +869,7 @@ function set_stack_pattern(pat) { pat && (stack_pattern = pat); }
 
 function rule(name,p) {
   var parser = function(state) {
-    rule_stack.push(name.match(stack_pattern) ? name : '-');
+    rule_stack.push(name.match(stack_pattern) ? name+':'+state.index : '-');
     if (trace && name.match(trace) && (!no_trace || !name.match(no_trace))) {
       var input = state.substring(0,30);
       log(nesting+'>'+name+"("+state.line+"/"+state.index+")["
