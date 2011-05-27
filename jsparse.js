@@ -34,6 +34,15 @@ function foldl(f, initial, seq) {
     return initial;
 }
 
+function log_tree(pre,ast) {
+  if (ast instanceof Array)
+    for (var i=0; i<ast.length; i++)
+      log_tree(pre+i.toString(),ast[i]); // TODO: understand numbering gaps in output
+      // log_tree(pre+'-',ast[i]); // less interesting/confusing output variation
+  else
+    log(pre+'|'+ast+'|');
+}
+
 var memoize = true;
 var debug   = false;
 
@@ -891,6 +900,7 @@ function log_rules(log,rule) {
 
 return {
   ps : ps,
+  log_tree : log_tree,
   token : token,
   ch : ch,
   range : range,

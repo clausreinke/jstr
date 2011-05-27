@@ -5,6 +5,20 @@ var test = function(file,opts,pc,grammar,testcase){
       for (var l=0; l<lines.length; l++) log(lines[l]);
     }
 
+    function log_ast_as_string(ast) {
+      var result = [];
+      function aux(ast) {
+        if (ast)
+          if (ast instanceof Array)
+            for (var i=0; i<ast.length; i++)
+              aux(ast[i]);
+          else
+            result.push(ast);
+      }
+      aux(ast);
+      log(result.join(""));
+    }
+
     function eta(msg) {
       return msg.replace(/function.input. { return ([^(]*)(\(input\))?; }/g,"$1");
     }
@@ -48,16 +62,18 @@ var test = function(file,opts,pc,grammar,testcase){
 
       if (parsed) {
         if (opts.match(/m/)) {
-          log('------------------------');
+          log('------------------------ matched source');
           log_lines(parsed.matched);
         }
         if (opts.match(/r/)) {
-          log('------------------------');
+          log('------------------------ remaining source');
           log_lines(parsed.remaining.toString());
         }
         if (opts.match(/a/)) {
-          log('------------------------');
-          log_lines(parsed.ast);
+          log('------------------------ unparse from ast');
+          log_ast_as_string(parsed.ast);
+          log('------------------------ ast');
+          pc.log_tree('',parsed.ast);
         }
         log('------------------------');
         parsed.remaining && log('pos.line: '+parsed.remaining.line);
