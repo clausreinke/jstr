@@ -119,11 +119,11 @@ var NullLiteral =
 var BooleanLiteral = 
     rule("BooleanLiteral",choice("true", "false"));
 var Zero = 
-    rule("Zero",action("0", function(ast) { return 0; }));
+    rule("Zero",token("0"));
 var DecimalDigit = 
-    rule("DecimalDigit",action(range("0", "9"), function(ast) { return parseInt(ast); }));
+    rule("DecimalDigit",range("0", "9"));
 var NonZeroDigit = 
-    rule("NonZeroDigit",action(range("1", "9"), function(ast) { return parseInt(ast); }));
+    rule("NonZeroDigit",range("1", "9"));
 var DecimalDigits = 
     rule("DecimalDigits",repeat1(DecimalDigit)); 
 var DecimalIntegerLiteral = 
@@ -263,8 +263,6 @@ var ReservedWord =
     rule("ReservedWord",
     choice(Keyword, FutureReservedWord, NullLiteral, BooleanLiteral));
 
-var HexDigit = 
-    rule("HexDigit",choice(range("0", "9"), range("a", "f"), range("A", "F")));
 var IdentifierLetter = 
     rule("IdentifierLetter",choice(range("a", "z"), range("A", "Z")));
 var IdentifierStart = 
