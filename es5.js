@@ -95,24 +95,28 @@ var PostAsteriskCommentChars = function(input) { return PostAsteriskCommentChars
 var MultiLineNotAsteriskChar = negate("*");
 var MultiLineNotForwardSlashOrAsteriskChar = negate(choice("/","*"));
 var PostAsteriskCommentChars =
+    join_action(
     choice(sequence(MultiLineNotForwardSlashOrAsteriskChar,optional(MultiLineCommentChars)),
-           sequence(not("*/"),"*",optional(PostAsteriskCommentChars)));
+           sequence(not("*/"),"*",optional(PostAsteriskCommentChars))),"");
 var MultiLineCommentChars = 
-    choice(sequence(repeat1(MultiLineNotAsteriskChar), optional(MultiLineCommentChars)),
-           sequence(not("*/"),"*",optional(PostAsteriskCommentChars)));
+    join_action(
+    choice(sequence(join_action(repeat1(MultiLineNotAsteriskChar),""),
+                    optional(MultiLineCommentChars)),
+           sequence(not("*/"),"*",optional(PostAsteriskCommentChars))),"");
 var MultiLineComment = 
     rule("MultiLineComment",sequence("/*",optional(MultiLineCommentChars),"*/"));
   // TODO: extract line terminators from multiline comment
 
-var SingleLineCommentChars = join_action(repeat1(negate(LineTerminator)), "");
+var SingleLineCommentChars = join_action(repeat1(negate(LineTerminator)),"");
 var SingleLineComment = 
     rule("SingleLineComment",sequence("//", optional(SingleLineCommentChars)));
 
-var Comment = rule("Comment",choice(MultiLineComment, SingleLineComment));
+var Comment = rule("Comment",join_action(choice(MultiLineComment, SingleLineComment),""));
 
 // register ES idea of whitespace with combinator library
 // TODO: nicer way of handling this hook
-whitespace.trim = rule("whitespace",repeat0(choice(Whitespace,LineTerminator,Comment)));
+whitespace.trim = 
+  rule("whitespace",join_action(repeat0(choice(Whitespace,LineTerminator,Comment)),""));
 
 var NullLiteral = 
     rule("NullLiteral",token("null"));
@@ -157,34 +161,34 @@ var CharacterEscapeSequence =
     choice(SingleEscapeCharacter, NonEscapeCharacter));
 var HexEscapeSequence = 
     rule("HexEscapeSequence",
-    sequence("x", HexDigit, HexDigit));
+    join_action(sequence("x", HexDigit, HexDigit),""));
 var UnicodeEscapeSequence = 
     rule("UnicodeEscapeSequence",
-    sequence("u", HexDigit, HexDigit, HexDigit, HexDigit));
+    join_action(sequence("u", HexDigit, HexDigit, HexDigit, HexDigit),""));
 var EscapeSequence = 
     rule("EscapeSequence",
     choice(HexEscapeSequence, UnicodeEscapeSequence, CharacterEscapeSequence));
 var LineContinuation = 
     rule("LineContinuation",
-    sequence("\\",LineTerminatorSequence));
+    join_action(sequence("\\",LineTerminatorSequence),""));
 var SingleStringCharacter = 
     rule("SingleStringCharacter",
     choice(negate(choice("\'", "\\", "\r", "\n")), // TODO: LineTerminator
-           sequence("\\", EscapeSequence)));
+           join_action(sequence("\\", EscapeSequence),"")));
 var DoubleStringCharacter = 
     rule("DoubleStringCharacter",
     choice(negate(choice("\"", "\\", "\r", "\n")), // TODO: LineTerminator
-           sequence("\\", EscapeSequence),
+           join_action(sequence("\\", EscapeSequence),""),
            LineContinuation));
 var SingleStringCharacters = 
-    rule("SingleStringCharacters",repeat1(SingleStringCharacter));
+    rule("SingleStringCharacters",join_action(repeat1(SingleStringCharacter),""));
 var DoubleStringCharacters = 
-    rule("DoubleStringCharacters",repeat1(DoubleStringCharacter));
+    rule("DoubleStringCharacters",join_action(repeat1(DoubleStringCharacter),""));
 
 var StringLiteral = 
     rule("StringLiteral",
-    choice(sequence("\"", optional(DoubleStringCharacters), "\""),
-           sequence("'", optional(SingleStringCharacters), "'")));
+    join_action(choice(sequence("\"", optional(DoubleStringCharacters), "\""),
+                       sequence("'", optional(SingleStringCharacters), "'")),""));
 
 var IdentifierPart = function(input) { return IdentifierPart(input); };
 
