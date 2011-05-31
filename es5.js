@@ -84,9 +84,9 @@ var SEMI = rule("SEMI",choice(";", // need restrictions: only if NL, ..
                               and("}")));
 
 var Whitespace = 
-    choice("\t", " ");
+    choice(ch("\t"),ch(" "));
 var LineTerminator = 
-    choice("\r\n",ch("\r"), ch("\n")); // TODO: avoid fall-through
+    choice("\r\n",ch("\r"),ch("\n")); // TODO: avoid fall-through
 var LineTerminatorSequence = 
     LineTerminator; // TODO: separate these two?
 
@@ -116,7 +116,7 @@ var Comment = rule("Comment",join_action(choice(MultiLineComment, SingleLineComm
 
 // register ES idea of whitespace with combinator library
 // TODO: nicer way of handling this hook
-whitespace.trim = 
+whitespace.trim =
   rule("whitespace",join_action(repeat0(choice(Whitespace,LineTerminator,Comment)),""));
 
 var NullLiteral = 
@@ -142,8 +142,8 @@ var ExponentPart =
 var DecimalLiteral = 
     rule("DecimalLiteral",
     choice(sequence(DecimalIntegerLiteral, ".", optional(DecimalDigits), optional(ExponentPart)),
-      sequence(".", DecimalDigits, optional(ExponentPart)),
-      sequence(DecimalIntegerLiteral, optional(ExponentPart))));
+           sequence(".", DecimalDigits, optional(ExponentPart)),
+           sequence(DecimalIntegerLiteral, optional(ExponentPart))));
 
 var HexDigit = 
     rule("HexDigit",choice(range("0", "9"), range("a", "f"), range("A", "F")));
@@ -222,7 +222,8 @@ var RegularExpressionBody =
 var RegularExpressionFlags = 
     rule("RegularExpressionFlags",repeat0(IdentifierPart));
 var RegularExpressionLiteral = 
-    rule("RegularExpressionLiteral",sequence("/",RegularExpressionBody,"/",RegularExpressionFlags));
+    rule("RegularExpressionLiteral",
+    sequence("/",RegularExpressionBody,"/",RegularExpressionFlags));
 
 var Literal = 
     rule("Literal",
@@ -292,7 +293,7 @@ var Initialiser =
 var VariableDeclaration = 
     rule("VariableDeclaration",wsequence(Identifier, optional(Initialiser)));
 var VariableDeclarationList = 
-    rule("VariableDeclarationList",wlist(VariableDeclaration, ","));	      
+    rule("VariableDeclarationList",wlist(VariableDeclaration, ","));
 var VariableStatement = 
     rule("VariableStatement",wsequence("var", VariableDeclarationList,SEMI));
 
