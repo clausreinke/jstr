@@ -34,13 +34,28 @@ function foldl(f, initial, seq) {
     return initial;
 }
 
+// log ast in nested tree form
 function log_tree(pre,ast) {
   if (ast instanceof Array)
     for (var i=0; i<ast.length; i++)
-      log_tree(pre+i.toString(),ast[i]); // TODO: understand numbering gaps in output
+      log_tree(pre+(i%10).toString(),ast[i]);
       // log_tree(pre+'-',ast[i]); // less interesting/confusing output variation
   else
     log(pre+'|'+ast+'|');
+}
+
+// log ast as nested array (to help cscript default logging)
+function log_array(ast) {
+  function aux(ast) {
+    var result = [];
+    if (ast instanceof Array) {
+      for (var i=0; i<ast.length; i++)
+        result.push(aux(ast[i]));
+      return "["+result.join(",")+"]";
+    } else
+      return ast;
+  }
+  log(aux(ast));
 }
 
 var memoize = true;
@@ -907,6 +922,7 @@ function log_rules(log,rule) {
 return {
   ps : ps,
   log_tree : log_tree,
+  log_array : log_array,
   token : token,
   ch : ch,
   range : range,
