@@ -55,6 +55,7 @@ var wlist = pc.wlist;
 var not = pc.not;
 var and = pc.and;
 var epsilon_p = pc.epsilon_p;
+var binops = pc.binops;
 var rule = pc.rule;
 
 // Forward Declarations
@@ -485,58 +486,31 @@ var UnaryExpression =
       wsequence("!", UnaryExpression)));
 
 var MultiplicativeExpression =
-    rule("MultiplicativeExpression",
-    sequence(whitespace(UnaryExpression),
-      repeat0(choice(wsequence("*", UnaryExpression),
-                     wsequence("/", UnaryExpression),
-                     wsequence("%", UnaryExpression)))));
+    rule("MultiplicativeExpression", binops(["*","/","%"], UnaryExpression));
 
 var AdditiveExpression =
-    rule("AdditiveExpression",
-    sequence(MultiplicativeExpression,
-      repeat0(choice(wsequence("+", MultiplicativeExpression),
-                     wsequence("-", MultiplicativeExpression)))));
+    rule("AdditiveExpression", binops(["+","-"], MultiplicativeExpression));
 
 var ShiftExpression = 
-    rule("ShiftExpression",
-    sequence(AdditiveExpression,
-      repeat0(choice(wsequence("<<", AdditiveExpression),
-                     wsequence(">>", AdditiveExpression),
-                     wsequence(">>>", AdditiveExpression)))));
+    rule("ShiftExpression", binops(["<<",">>>",">>"], AdditiveExpression));
 
 var RelationalExpression =
-    rule("RelationalExpression",
-    sequence(ShiftExpression,
-      repeat0(choice(wsequence("<", ShiftExpression),
-                     wsequence(">", ShiftExpression),
-                     wsequence("<=", ShiftExpression),
-                     wsequence(">=", ShiftExpression),
-                     wsequence("instanceof", ShiftExpression)))));
+    rule("RelationalExpression", binops(["<=",">=","<",">","instanceof"], ShiftExpression));
 
 var EqualityExpression = // TODO: what about the ..NoIn variants?
-    rule("EqualityExpression",
-    sequence(RelationalExpression, 
-      repeat0(choice(wsequence("===", RelationalExpression),
-                     wsequence("!==", RelationalExpression),
-                     wsequence("==", RelationalExpression),
-                     wsequence("!=", RelationalExpression)))));
+    rule("EqualityExpression", binops(["===","!==","==","!="], RelationalExpression));
 
 var BitwiseANDExpression = 
-    rule("BitwiseANDExpression",
-    sequence(EqualityExpression, repeat0(wsequence("&", EqualityExpression))));
+    rule("BitwiseANDExpression", binops(["&"], EqualityExpression));
 var BitwiseXORExpression = 
-    rule("BitwiseXORExpression",
-    sequence(BitwiseANDExpression, repeat0(wsequence("^", BitwiseANDExpression))));
+    rule("BitwiseXORExpression", binops(["^"], BitwiseANDExpression));
 var BitwiseORExpression = 
-    rule("BitwiseORExpression",
-    sequence(BitwiseXORExpression, repeat0(wsequence("|", BitwiseXORExpression))));
+    rule("BitwiseORExpression", binops(["|"], BitwiseXORExpression));
 var LogicalANDExpression = 
-    rule("LogicalANDExpression",
-    sequence(BitwiseORExpression, repeat0(wsequence("&&", BitwiseORExpression))));
+    rule("LogicalANDExpression", binops(["&&"], BitwiseORExpression));
 
 var LogicalORExpression = 
-    rule("LogicalORExpression",
-    sequence(LogicalANDExpression, repeat0(wsequence("||", LogicalANDExpression))));
+    rule("LogicalORExpression", binops(["||"], LogicalANDExpression));
 
 var ConditionalExpression = 
     rule("ConditionalExpression",

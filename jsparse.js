@@ -877,6 +877,18 @@ function not(p) {
     return parser;
 }
 
+// binary operators '[op,..]' with arguments 'e': e op e op e ..
+function binops(ops,e) {
+  var opsParser = whitespace( ops.length===1 ? token(ops[0]) : choice.apply(null,ops) );
+  return action(sequence(whitespace(e), repeat0(sequence(opsParser, whitespace(e)))),
+                function(ast){
+                  if (ast[1].length===0)
+                    return ast[0]; // e : no op, no nesting
+                  else
+                    return [ast[0]].concat(ast[1]); // [e,op,e,op,..] : flat
+                });
+}
+
 var rules = {}, listrules = [], rule_stack = [], nesting = '';
 
 var stack_pattern = null; // /^(?!pc)/;
@@ -951,6 +963,7 @@ return {
   semantic : semantic,
   and : and,
   not : not,
+  binops : binops,
   rule : rule,
   log_rules : log_rules,
   set_trace : set_trace,
