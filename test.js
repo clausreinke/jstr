@@ -69,9 +69,11 @@ var test = function(file,opts,pc,grammar,testcase){
           log('------------------------ remaining source');
           log_lines(parsed.remaining.toString());
         }
-        if (opts.match(/a/)) {
+        if (opts.match(/u/)) {
           log('------------------------ unparse from ast');
           log_ast_as_string(parsed.ast);
+        }
+        if (opts.match(/a/)) {
           log('------------------------ ast');
           pc.log_tree('',parsed.ast);
         }
