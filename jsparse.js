@@ -374,7 +374,7 @@ function left_factor_action(p) {
 function negate(p) {
     var p = toParser(p);
     var pid = parser_id++;
-    var parser = function(state) {
+    var parser = rule("pc.negate("+p+")",function(state) {
         var savedState = state;
         var cached = savedState.getCached(pid);
         if(cached)
@@ -392,7 +392,7 @@ function negate(p) {
         }
         savedState.putCached(pid, cached);
         return cached;
-    };
+    });
     parser.toString = function () { return "negate("+(depth++>max_depth?"...":p)+")"; };
     return parser;
 }
@@ -541,7 +541,7 @@ function butnot(p1,p2) {
 
     // match a but not b. if both match and b's matched text is shorter
     // than a's, a failed match is made
-    var parser = function(state) {
+    var parser = rule("butnot("+p1+","+p2+")",function(state) {
         var savedState = state;
         var cached = savedState.getCached(pid);
         if(cached)
@@ -560,7 +560,7 @@ function butnot(p1,p2) {
         }
         savedState.putCached(pid, cached);
         return cached;
-    };
+    });
     parser.toString = function () { var p1s="...",p2s="...";
                                     if (depth++<=max_depth) {
                                       p1s = p1.toString();
@@ -680,7 +680,7 @@ function repeat1(p) {
     var p = toParser(p);
     var pid = parser_id++;
 
-    var parser = function(state) {
+    var parser = rule("pc.repeat1("+p+")",function(state) {
         var savedState = state;
         var cached = savedState.getCached(pid);
         if(cached)
@@ -704,7 +704,7 @@ function repeat1(p) {
         }
         savedState.putCached(pid, cached);
         return cached;
-    };
+    });
     parser.toString = function () { return "repeat1("+(depth++>max_depth?"...":p)+")"; };
     return parser;
 }
