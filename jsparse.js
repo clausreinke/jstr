@@ -778,9 +778,10 @@ function chainl(p, s) {
 
 // A parser combinator that returns a parser that matches lists of things. The parser to
 // match the list item and the parser to match the seperator need to
-// be provided. The AST is the array of matched items.
+// be provided. The AST is the array of matched items. For the moment, separators are
+// included in the result.
 function list(p, s) {
-    var parser = chain(p, s, function(ast) { return ast[1]; });
+    var parser = chain(p, s, function(ast) { return ast /* [1] */; });
     parser.toString = function () { var ps="...",ss="...";
                                     if (depth++<=max_depth) {
                                       ps = p.toString();
