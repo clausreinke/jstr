@@ -26,6 +26,8 @@
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
+// without this line, ff4 execution times multiply x5 - I still don't believe it.
+
 var pc = (function(){
 
 function foldl(f, initial, seq) {
@@ -659,7 +661,7 @@ function repeat0(p) {
         var ast = [];
         var matched = "";
         var result;
-        while(result = p(state)) {
+        while(result = p(state.from(0))) {
             ast.push(result.ast);
             matched = matched + result.matched;
             if(result.remaining.index == state.index)
@@ -698,7 +700,7 @@ function repeat1(p) {
                 if(result.remaining.index == state.index)
                     break;
                 state = result.remaining;
-                result = p(state);
+                result = p(state.from(0));
             }
             cached = make_result(state, matched, ast);
         }
@@ -719,7 +721,7 @@ function optional(p) {
         var cached = savedState.getCached(pid);
         if(cached)
             return cached;
-        var r = p(state);
+        var r = p(state.from(0));
         cached = r ? r : make_result(state, "", undefined);
         savedState.putCached(pid, cached);
         return cached;
