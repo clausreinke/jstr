@@ -460,17 +460,17 @@ function sequence() {
               if (trace) {
                 log(msg);
               } 
-//              if (state.index>=state.partials.length-1) {
+              if (state.index>=state.partials.length-1) {
                 var partial = state.partials[state.index];
                 if (partial)
                   state.partials[state.index] = 
                     partial.concat([make_partial_result(state, matched, ast, msg)]);
                 else {
-//                  delete state.partials[state.partials.length-1];
+                  delete state.partials[state.partials.length-1];
                   state.partials[state.index] = 
                     [make_partial_result(state, matched, ast, msg)];
                 }
-//              }
+              }
             }
             cached = false;
         }
