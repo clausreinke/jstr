@@ -86,15 +86,15 @@ var SEMI = rule("SEMI",choice(";", // need restrictions: only if NL, ..
 var Whitespace = 
     choice(ch("\t"),ch(" "));
 var LineTerminator = 
-    choice("\r\n",ch("\r"),ch("\n")); // TODO: avoid fall-through
+    choice("\r\n",ch("\r"),ch("\n"));
 var LineTerminatorSequence = 
     LineTerminator; // TODO: separate these two?
 
 var MultiLineCommentChars = function(input) { return MultiLineCommentChars(input); };
 var PostAsteriskCommentChars = function(input) { return PostAsteriskCommentChars(input); };
 
-var MultiLineNotAsteriskChar = negate("*");
-var MultiLineNotForwardSlashOrAsteriskChar = negate(choice("/","*"));
+var MultiLineNotAsteriskChar = choice(LineTerminator,negate("*"));
+var MultiLineNotForwardSlashOrAsteriskChar = choice(LineTerminator,negate(choice("/","*")));
 var PostAsteriskCommentChars =
     join_action(
     choice(sequence(MultiLineNotForwardSlashOrAsteriskChar,optional(MultiLineCommentChars)),
