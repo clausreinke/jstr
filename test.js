@@ -24,8 +24,9 @@ var test = function(file,opts,pc,grammar,testcase){
     }
 
     log('\nprocessing '+file);
-    var src = testcase ? testcase.src : load(file);
-    var rule = testcase ? testcase.rule : grammar.Program;
+    pc.clear_cache();
+    var src = testcase && testcase.src ? testcase.src : load(file);
+    var rule = testcase  && testcase.rule ? testcase.rule : grammar(pc).Program;
 
     var startTime = (new Date()).getTime();
     if (opts.match(/l/)) pc.log_rules(log,rule);
@@ -80,7 +81,7 @@ var test = function(file,opts,pc,grammar,testcase){
         log('------------------------');
         parsed.remaining && log('pos.line: '+parsed.remaining.line);
       }
-      if (!parsed) {
+      if (!parsed && input.partials && input.partials.length>0) {
         var pi = input.partials.length-1;
         var partials = input.partials[pi];
         for (var partial_i=0; partial_i<partials.length; partial_i++)

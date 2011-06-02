@@ -9,10 +9,12 @@ The only documentation currently available in these blog entries:
 http://www.bluishcoder.co.nz/2007/10/javascript-packrat-parser.html
 http://www.bluishcoder.co.nz/2007/10/javascript-parser-combinators.html
 
-Originally written by Chris Double. In the process of being revived,
-rewritten, and extended, by Claus Reinke. Since my main interest is in
-parsing ECMAScript 5 and beyond, I've been trying to keep the parser
-combinator API, just extending the grammar and implementation.
+Originally written by Chris Double: http://github.com/doublec/jsparse
+
+In the process of being revived, rewritten, and extended, by Claus Reinke.
+Since my main interest is in parsing ECMAScript 5 and beyond, I've been 
+trying to keep the parser combinator API, just extending the grammar and
+implementation. That is beginning to change now, so don't expect stability.
 
 jsparse.js
   the combinator library

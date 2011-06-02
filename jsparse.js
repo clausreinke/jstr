@@ -163,13 +163,20 @@ function make_partial_result(r, matched, ast, msg) {
 
 var parser_id = 0;
 
+var cache = { token: {}, wtoken: {}, ch: {}, range: {}, regex: {} };
+
+function clear_cache() { cache = { token: {}, wtoken: {}, ch: {}, range: {}, regex: {} }; }
+
 // 'token' is a parser combinator that given a string, returns a parser
 // that parses that string value. The AST contains the string that was parsed.
 function token(s) {
     var pid = parser_id++;
+    if (!cache.token[s]) cache.token[s] = [];
+    var my_cache = cache.token[s];
     var parser = rule("pc.token("+s+")",function(state) {
         var savedState = state;
-        var cached = savedState.getCached(pid);
+        // var cached = savedState.getCached(pid);
+        var cached = my_cache[savedState.index];
         if(cached)
             return cached;
 
@@ -178,7 +185,8 @@ function token(s) {
             cached = { remaining: state.from(s.length,s), matched: s, ast: s };
         } else
             cached = false;
-        savedState.putCached(pid, cached);
+        // savedState.putCached(pid, cached);
+        my_cache[savedState.index] = cached;
         return cached;
     });
     parser.toString = function() { return "token(\""+s+"\")"; };
@@ -189,9 +197,12 @@ function token(s) {
 // containing a single character, parses that character value.
 function ch(c) {
     var pid = parser_id++;
-    var parser = function(state) {
+    if (!cache.ch[c]) cache.ch[c] = [];
+    var my_cache = cache.ch[c];
+    var parser = rule("pc.ch("+c+")",function(state) {
         var savedState = state;
-        var cached = savedState.getCached(pid);
+        // var cached = savedState.getCached(pid);
+        var cached = my_cache[savedState.index];
         if(cached)
             return cached;
         var r = state.length >= 1 && state.at(0) == c;
@@ -199,9 +210,10 @@ function ch(c) {
             cached = { remaining: state.from(1,c), matched: c, ast: c };
         } else
             cached = false;
-        savedState.putCached(pid, cached);
+        // savedState.putCached(pid, cached);
+        my_cache[savedState.index] = cached;
         return cached;
-    };
+    });
     parser.toString = function() { return "ch(\""+c+"\")"; };
     return parser;
 }
@@ -211,9 +223,12 @@ function ch(c) {
 // range of the 'lower' and 'upper' bounds ("a" to "z" for example).
 function range(lower, upper) {
     var pid = parser_id++;
-    var parser = function(state) {
+    if (!cache.range[lower+upper]) cache.range[lower+upper] = [];
+    var my_cache = cache.range[lower+upper];
+    var parser = rule("pc.range("+lower+","+upper+")",function(state) {
         var savedState = state;
-        var cached = savedState.getCached(pid);
+        // var cached = savedState.getCached(pid);
+        var cached = my_cache[savedState.index];
         if(cached)
             return cached;
 
@@ -226,9 +241,10 @@ function range(lower, upper) {
             else
                 cached = false;
         }
-        savedState.putCached(pid, cached);
+        // savedState.putCached(pid, cached);
+        my_cache[savedState.index] = cached;
         return cached;
-    };
+    });
     parser.toString = function() { return "range("+lower+","+upper+")"; };
     return parser;
 }
@@ -971,7 +987,8 @@ return {
   log_rules : log_rules,
   set_trace : set_trace,
   set_stack_pattern : set_stack_pattern,
-  set_debug : set_debug
+  set_debug : set_debug,
+  clear_cache : clear_cache
   };
 
 }());

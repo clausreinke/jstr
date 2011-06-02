@@ -26,9 +26,9 @@
   <script language="JScript">
 
   if (opts.match(/#/))
-    tests(test,opts,pc,grammar(pc));
+    tests(test,opts,pc,grammar);
   else
-    test(file,opts,pc,grammar(pc));
+    test(file,opts,pc,grammar);
 
   </script>
 </job>
