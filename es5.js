@@ -37,6 +37,9 @@ var grammar = function(pc){
 var token = pc.token;
 var ch = pc.ch;
 var range = pc.range;
+var wtoken = pc.wtoken;
+var wch = pc.wch;
+var wrange = pc.wrange;
 var whitespace = pc.whitespace;
 var action = pc.action;
 var join_action = pc.join_action;
@@ -46,6 +49,7 @@ var nothing_p = pc.nothing_p;
 var sequence = pc.sequence;
 var wsequence = pc.wsequence;
 var choice = pc.choice;
+var wchoice = pc.wchoice;
 var butnot = pc.butnot;
 var repeat0 = pc.repeat0;
 var repeat1 = pc.repeat1;
@@ -74,14 +78,14 @@ var LeftHandSideExpression =
 // (remembering NLs avoids making whitespace calls explicit,
 //  but explicit whitespace/NL handling would be better,
 //  to avoid grammar-specific additions to pc lib?)
-var NLTH = rule("NLTH",function(input) { // fail if NL
+var NLTH = rule("NLTH",whitespace(function(input) { // fail if NL
                         if (input.NL)
                           return nothing_p(input);
                         else
-                          return epsilon_p(input); });
-var SEMI = rule("SEMI",choice(";", // need restrictions: only if NL, ..
+                          return epsilon_p(input); }));
+var SEMI = rule("SEMI",choice(wtoken(";"), // missing eof, anything else?
                               not(NLTH),
-                              and("}")));
+                              and(wtoken("}"))));
 
 var Whitespace = 
     choice(ch("\t"),ch(" "));
@@ -282,7 +286,7 @@ var IdentifierName =
          return ast[0].concat(ast[1]); 
      }));
 var Identifier = 
-    rule("Identifier",butnot(IdentifierName, ReservedWord));
+    rule("Identifier",whitespace(butnot(IdentifierName, ReservedWord)));
 
 var StatementList = 
     rule("StatementList",repeat1(Statement));
@@ -298,7 +302,7 @@ var VariableStatement =
     rule("VariableStatement",wsequence("var", VariableDeclarationList,SEMI));
 
 var EmptyStatement = 
-    rule("EmptyStatement",whitespace(token(";"))); // no ASI
+    rule("EmptyStatement",wtoken(";")); // no ASI
 
 var IfStatement = 
     rule("IfStatement",
@@ -354,8 +358,9 @@ var DebuggerStatement = rule("DebuggerStatement",wsequence("debugger",SEMI));
 
 var ExpressionStatement = 
     rule("ExpressionStatement",
-    choice(wsequence(choice("{", "function"), nothing_p),
-           wsequence(Expression,SEMI)));
+    whitespace(
+    choice(sequence(choice("{", "function"), nothing_p),
+           sequence(Expression,SEMI))));
 var Statement = 
     rule("Statement",
     choice(Block,
@@ -380,7 +385,7 @@ var FunctionDeclaration =
 var FunctionBody = 
     rule("FunctionBody",repeat0(SourceElement));
 var FormalParameterList = 
-    rule("FormalParameterList",wlist(Identifier, ","));	      
+    rule("FormalParameterList",wlist(Identifier, ","));
 var FunctionExpression = 
     rule("FunctionExpression",
     wsequence("function", optional(Identifier), "(", optional(FormalParameterList), ")", 
@@ -420,7 +425,7 @@ var NewExpression =
       wsequence("new", NewExpression)));
 var CallExpression = 
     rule("CallExpression",
-    left_factor_action(sequence(wsequence(MemberExpression, Arguments),
+    left_factor_action(sequence(sequence(MemberExpression, Arguments),
                                 repeat0(choice(Arguments,
                                   wsequence("[", Expression, "]"),
                                   wsequence(".", Identifier))))));
@@ -429,18 +434,20 @@ var LeftHandSideExpression =
     rule("LeftHandSideExpression",choice(CallExpression, NewExpression));
 
 var AssignmentOperator = 
-    rule("AssignmentOperator",choice("=",
-      "*=",
-      "/=",
-      "%=",
-      "+=",
-      "-=",
-      "<<=",
-      ">>=",
-      ">>>=",
-      "&=",
-      "^=",
-      "|="));
+    rule("AssignmentOperator",
+    whitespace(
+    choice("=",
+          "*=",
+          "/=",
+          "%=",
+          "+=",
+          "-=",
+          "<<=",
+          ">>=",
+          ">>>=",
+          "&=",
+          "^=",
+          "|=")));
 
 var LogicalORExpression = 
     function(input) { return LogicalORExpression(input); };
@@ -520,21 +527,22 @@ var ConditionalExpression =
 
 var AssignmentExpression = 
     rule("AssignmentExpression",
-    choice(wsequence(LeftHandSideExpression, AssignmentOperator, AssignmentExpression),
+    choice(sequence(whitespace(LeftHandSideExpression), AssignmentOperator, AssignmentExpression),
       ConditionalExpression));
 
 var Expression = rule("Expression",wlist(AssignmentExpression, ","));
 
-var Elision = rule("Elision",repeat1(",")); 
+var Elision = rule("Elision",repeat1(wtoken(",")));
 var ElementList = 
-    rule("ElementList",wlist(wsequence(optional(Elision), AssignmentExpression), ","));
+    rule("ElementList",list(sequence(optional(Elision), AssignmentExpression), wtoken(",")));
 var ArrayLiteral = 
     rule("ArrayLiteral",
     choice(wsequence("[", optional(Elision), "]"),
       wsequence("[", ElementList, "]"),
       wsequence("[", ElementList, optional(Elision), "]")));
 
-var PropertyName = rule("PropertyName",choice(Identifier, StringLiteral, NumericLiteral));
+var PropertyName =
+    rule("PropertyName",whitespace(choice(Identifier, StringLiteral, NumericLiteral)));
 var PropertyNameAndValueList =
     rule("PropertyNameAndValueList",
     wlist(wsequence(PropertyName, ":", AssignmentExpression), ","));
@@ -544,12 +552,14 @@ var ObjectLiteral =
       wsequence("{", PropertyNameAndValueList, "}")));
 
 var PrimaryExpression = 
-    rule("PrimaryExpression",choice("this",
+    rule("PrimaryExpression",
+    whitespace(
+    choice(wtoken("this"),
       wsequence("(", Expression, ")"),
       Identifier,
       ArrayLiteral,
       ObjectLiteral,
-      Literal));
+      Literal)));
 var SourceElement = rule("SourceElement",choice(Statement, FunctionDeclaration));
 var Program = rule("Program",repeat0(SourceElement));
 

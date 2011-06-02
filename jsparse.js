@@ -193,6 +193,13 @@ function token(s) {
     return parser;
 }
 
+// 'wtoken' is like 'token', but consumes whitespace
+function wtoken(s) {
+  var parser = whitespace(token(s));
+  parser.toString = function() { return "wtoken("+s+")"; };
+  return parser;
+}
+
 // Like 'token' but for a single character. Returns a parser that given a string
 // containing a single character, parses that character value.
 function ch(c) {
@@ -216,6 +223,13 @@ function ch(c) {
     });
     parser.toString = function() { return "ch(\""+c+"\")"; };
     return parser;
+}
+
+// 'wch' is like 'ch', but consumes whitespace
+function wch(c) {
+  var parser = whitespace(ch(c));
+  parser.toString = function() { return "wch("+c+")"; };
+  return parser;
 }
 
 // 'range' is a parser combinator that returns a single character parser
@@ -249,10 +263,17 @@ function range(lower, upper) {
     return parser;
 }
 
+// 'wrange' is like 'range', but consumes whitespace
+function wrange(l,u) {
+  var parser = whitespace(range(l,u));
+  parser.toString = function() { return "wrange("+l+","+u+")"; };
+  return parser;
+}
+
 // Helper function to convert string literals to token parsers
 // and perform other implicit parser conversions.
-function toParser(p) {
-    return (typeof(p) == "string") ? token(p) : p;
+function toParser(p,white) {
+    return (typeof(p) == "string") ? (white ? wtoken(p) : token(p)) : p;
 }
 
 // grammar rule trace, controlled by regex 
@@ -499,12 +520,12 @@ function sequence() {
     return parser;
 }
 
-// Like sequence, but ignores whitespace between individual parsers.
+// Like sequence, but tokens consume whitespace by default
 function wsequence() {
     var parsers = [],args = [];
     for(var i=0; i < arguments.length; ++i) {
-        args.push(toParser(arguments[i]));
-        parsers.push(whitespace(toParser(arguments[i])));
+        args.push(toParser(arguments[i],true));
+        parsers.push(toParser(arguments[i],true)); // TODO: whitespace
     }
     var parser = sequence.apply(null, parsers);
     parser.toString = function () {
@@ -545,6 +566,15 @@ function choice() {
         return cached;
     });
     parser.toString = function () { return "choice("+(depth++>max_depth?"...":parsers)+")"; };
+    return parser;
+}
+
+// 'wchoice' is like 'choice', but tokens consume whitespace by default
+function wchoice() {
+    var parsers = [];
+    for(var i = 0; i < arguments.length; ++i)
+        parsers.push(toParser(arguments[i],true));
+    var parser = choice.apply(null,parsers);
     return parser;
 }
 
@@ -807,14 +837,8 @@ function list(p, s) {
     return parser;
 }
 
-// Like list, but ignores whitespace between individual parsers.
-function wlist() {
-    var parsers = [];
-    for(var i=0; i < arguments.length; ++i) {
-        parsers.push(whitespace(arguments[i]));
-    }
-    return list.apply(null, parsers);
-}
+// Like list, but tokens consume whitespace by default
+function wlist(p, s) { return list(toParser(p,true),toParser(s,true)); }
 
 // A parser that always returns a zero length match
 function epsilon_p(state) {
@@ -957,6 +981,9 @@ return {
   token : token,
   ch : ch,
   range : range,
+  wtoken : wtoken,
+  wch : wch,
+  wrange : wrange,
   whitespace : whitespace,
   action : action,
   join_action : join_action,
@@ -967,6 +994,7 @@ return {
   sequence : sequence,
   wsequence : wsequence,
   choice : choice,
+  wchoice : wchoice,
   butnot : butnot,
 //  difference : difference,
   xor : xor,
