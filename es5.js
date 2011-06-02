@@ -40,6 +40,7 @@ var range = pc.range;
 var wtoken = pc.wtoken;
 var wch = pc.wch;
 var wrange = pc.wrange;
+var regex = pc.regex;
 var whitespace = pc.whitespace;
 var action = pc.action;
 var join_action = pc.join_action;
@@ -109,14 +110,15 @@ var MultiLineCommentChars =
                     optional(MultiLineCommentChars)),
            sequence(not("*/"),"*",optional(PostAsteriskCommentChars))),"");
 var MultiLineComment = 
-    rule("MultiLineComment",sequence("/*",optional(MultiLineCommentChars),"*/"));
-  // TODO: extract line terminators from multiline comment
+    rule("MultiLineComment",join_action(sequence("/*",optional(MultiLineCommentChars),"*/"),""));
 
 var SingleLineCommentChars = join_action(repeat1(negate(LineTerminator)),"");
 var SingleLineComment = 
-    rule("SingleLineComment",sequence("//", optional(SingleLineCommentChars)));
+    rule("SingleLineComment",join_action(sequence("//", optional(SingleLineCommentChars)),""));
 
-var Comment = rule("Comment",join_action(choice(MultiLineComment, SingleLineComment),""));
+var Comment = rule("Comment",choice(MultiLineComment, SingleLineComment));
+// TODO: regex shows no visible performance advantage?
+// var Comment = rule("Comment",regex(/^(\/\*([^*]|(\*)+[^*/])*\*\/|\/\/[^\r\n]*)/));
 
 // register ES idea of whitespace with combinator library
 // TODO: nicer way of handling this hook

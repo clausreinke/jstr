@@ -270,6 +270,32 @@ function wrange(l,u) {
   return parser;
 }
 
+function dummy(){} // ff4 is going to make me see ghosts..
+
+function regex(r) {
+    var pid = parser_id++;
+    if (!cache.regex[r]) cache.regex[r] = [];
+    var my_cache = cache.regex[r];
+    var parser = rule("pc.regex("+r+")",function(state) {
+        var savedState = state;
+        // var cached = savedState.getCached(pid);
+        var cached = my_cache[savedState.index];
+        if(cached)
+            return cached;
+
+        var res = state.substring(0).match(r);
+        if(res) {
+            cached = { remaining: state.from(res[0].length,res[0]), matched: res[0], ast: res[0] };
+        } else
+            cached = false;
+        // savedState.putCached(pid, cached);
+        my_cache[savedState.index] = cached;
+        return cached;
+    });
+    parser.toString = function() { return "regex(\""+r+"\")"; };
+    return parser;
+}
+
 // Helper function to convert string literals to token parsers
 // and perform other implicit parser conversions.
 function toParser(p,white) {
@@ -984,6 +1010,7 @@ return {
   wtoken : wtoken,
   wch : wch,
   wrange : wrange,
+  regex : regex,
   whitespace : whitespace,
   action : action,
   join_action : join_action,
