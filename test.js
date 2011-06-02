@@ -38,28 +38,30 @@ var test = function(file,opts,pc,grammar,testcase){
       var parser = pc.sequence(rule,pc.whitespace(pc.end_p));
       var input  = pc.ps(src);
       var parsed = parser(input); 
-        // jsparse.js(cscript): 925l/26k
-        // jsparse.js(ff4): 925l/6k
-        // jsparse.js(ie9): 925l/2.2k
+        // jsparse.js(cscript): 1050l/51.5k
+        // jsparse.js(ff4): 1050l/5.9k
+        // jsparse.js(ie9): 1050l/4.1k
         //
-        // es5.js(cscript): 586l/14.5k
-        // es5.js(ff4): 586l/3.4k
-        // es5.js(ie9): 586l/1.3k
+        // es5.js(cscript): 628l/24.2k
+        // es5.js(ff4): 628l/3.1k
+        // es5.js(ie9): 628l/2k
         //
-        // fulljslint(cscript): 6857l/223.5k
-        // fulljslint(ff4): 6857l/50k
-        // fulljslint(ie9): 6857l/31.5k
+        // fulljslint(cscript): 6558l/374.3k
+        // fulljslint(ff4): 6558l/45.6k
+        // fulljslint(ie9): 6558l/32.6k
         //
-        // read-json.js(cscript): 398l/15k [needs ASI]
-        // read-json.js(ff4): 398l/3.5k [needs ASI]
-        // read-json.js(ie9): 398l/1.3k [needs ASI]
+        // read-json.js(cscript): 398l/25.1k [needs ASI]
+        // read-json.js(ff4): 398l/3.1k [needs ASI]
+        // read-json.js(ie9): 398l/2k [needs ASI]
         //
-        // TODO: lines still off (often just by one,
-        //         but by 300 for fulljslint.js)
-        //       way too slow (more so with ASI
-        //         and error messages (+))
-        //       uses too much memory now, at least via cscript?
-        //        (how to use ie9 engine for cscript?)
+        // peg-0.6.1.js(ff4): 4794l/29.7k
+        // peg-0.6.1.js(ie9): 4794l/22.6k
+        //
+        // TODO: lines off by one, because we start at 1 and increase for every lineend
+        //       way too slow (more so since ASI and error messages)
+        //       uses too much memory now
+        //       how to use ie9 engine for cscript?
+        //        (ie8 is unusably slow here, is it worth figuring out why?)
 
       if (parsed) {
         if (opts.match(/m/)) {
