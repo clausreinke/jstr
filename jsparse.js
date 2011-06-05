@@ -644,79 +644,6 @@ function butnot(p1,p2) {
     return parser;
 }
 
-// 'difference' is a parser combinator that takes two parsers, 'p1' and 'p2'.
-// It returns a parser that succeeds if 'p1' matches and 'p2' does not. If
-// both match then if p2's matched text is shorter than p1's it is successfull.
-// TODO: what does this do?
-// function difference(p1,p2) {
-//     var p1 = toParser(p1);
-//     var p2 = toParser(p2);
-//     var pid = parser_id++;
-// 
-//     // match a but not b. if both match and b's matched text is shorter
-//     // than a's, a successfull match is made
-//     var parser = function(state) {
-//         var savedState = state;
-//         var cached = savedState.getCached(pid);
-//         if(cached)
-//             return cached;
-// 
-//         var br = p2(state);
-//         if(!(br && br.success)) {
-//             cached = p1(state);
-//         } else {
-//             var ar = p1(state);
-//             if(ar.matched.length >= br.matched.length)
-//                 cached = br;
-//             else
-//                 cached = ar;
-//         }
-//         savedState.putCached(pid, cached);
-//         return cached;
-//     };
-//     parser.toString = function () { var p1s="...",p2s="...";
-//                                     if (depth++<=max_depth) {
-//                                       p1s = p1.toString();
-//                                       p2s = p2.toString();
-//                                     }
-//                                     return "difference("+p1s+","+p2s+")"; };
-//     return parser;
-// }
-
-
-// 'xor' is a parser combinator that takes two parsers, 'p1' and 'p2'.
-// It returns a parser that succeeds if 'p1' or 'p2' match but fails if
-// they both match.
-function xor(p1, p2) {
-    var p1 = toParser(p1);
-    var p2 = toParser(p2);
-    var pid = parser_id++;
-
-    // match a or b but not both
-    var parser = function(state) {
-        var savedState = state;
-        var cached = savedState.getCached(pid);
-        if(cached)
-            return cached;
-
-        var ar = p1(state);
-        var br = p2(state);
-        if(ar && br)
-            cached = false; // TODO: use of partial result?
-        else
-            cached = ar ? ar : br;
-        savedState.putCached(pid, cached);
-        return cached;
-    };
-    parser.toString = function () { var p1s="...",p2s="...";
-                                    if (depth++<=max_depth) {
-                                      p1s = p1.toString();
-                                      p2s = p2.toString();
-                                    }
-                                    return "xor("+p1s+","+p2s+")"; };
-    return parser;
-}
-
 // A parser combinator that takes one parser. It returns a parser that
 // looks for zero or more matches of the original parser.
 function repeat0(p) {
@@ -1023,8 +950,6 @@ return {
   choice : choice,
   wchoice : wchoice,
   butnot : butnot,
-//  difference : difference,
-  xor : xor,
   repeat0 : repeat0,
   repeat1 : repeat1,
   optional : optional,
