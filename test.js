@@ -5,20 +5,6 @@ var test = function(file,opts,pc,grammar,testcase){
       for (var l=0; l<lines.length; l++) log(lines[l]);
     }
 
-    function log_ast_as_string(ast) {
-      var result = [];
-      function aux(ast) {
-        if (ast)
-          if (ast instanceof Array)
-            for (var i=0; i<ast.length; i++)
-              aux(ast[i]);
-          else
-            result.push(ast);
-      }
-      aux(ast);
-      log(result.join(""));
-    }
-
     function eta(msg) {
       return msg.replace(/function.input. { return ([^(]*)(\(input\))?; }/g,"$1");
     }
@@ -74,7 +60,7 @@ var test = function(file,opts,pc,grammar,testcase){
         }
         if (opts.match(/u/)) {
           log('------------------------ unparse from ast');
-          log_ast_as_string(parsed.ast);
+          pc.log_ast_as_string(input.whitespace,parsed.ast);
         }
         if (opts.match(/a/)) {
           log('------------------------ ast');

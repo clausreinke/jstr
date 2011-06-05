@@ -42,6 +42,8 @@ function log_tree(pre,ast) {
     for (var i=0; i<ast.length; i++)
       log_tree(pre+(i%10).toString(),ast[i]);
       // log_tree(pre+'-',ast[i]); // less interesting/confusing output variation
+  else if (ast instanceof Rule)
+    log_tree(pre/* +"{"+ast.name+"}" */,ast.ast); // names too long, obscure tree
   else
     log(pre+'|'+ast+'|');
 }
@@ -60,6 +62,28 @@ function log_array(ast) {
   log(aux(ast));
 }
 
+// log ast by unparsing
+function log_ast_as_string(whitespace,ast) {
+  var result = [], done = [];
+  function aux(ast) {
+    if (ast) {
+      if (ast.index && !done[ast.index] && whitespace[ast.index]) {
+        done[ast.index] = true; // don't output whitespace twice
+        result.push(whitespace[ast.index]);
+      }
+      if (ast instanceof Array)
+        for (var i=0; i<ast.length; i++)
+          aux(ast[i]);
+      else if (ast instanceof Rule)
+        aux(ast.ast);
+      else
+        result.push(ast);
+    }
+  }
+  aux(ast);
+  log(result.join(""));
+}
+
 var memoize = true;
 var debug   = false;
 
@@ -72,6 +96,7 @@ function ParseState(input, index, line) {
     this.cache = { };
     this.line  = line || 1; // line number
     this.NL = false;  // linebreak in previous token?
+    this.whitespace = []; // whitespace, indexed by index of next token
     this.partials = []; // partial parses, by index
     return this;
 }
@@ -87,9 +112,10 @@ ParseState.prototype.incLine = function(s) {
 
 ParseState.prototype.from = function(index,s) {
     var r = new ParseState(this.input, this.index + index, this.line);
-    r.cache = this.cache;
-    r.partials = this.partials;
-    r.length = this.length - index;
+    r.cache      = this.cache;
+    r.whitespace = this.whitespace;
+    r.partials   = this.partials;
+    r.length     = this.length - index;
     if (s)
       r.incLine(s);
     else
@@ -354,12 +380,24 @@ function whitespace(p) {
           trimmed.remaining.NL = trimmed.remaining.NL || state.NL;
 
         var result = p(trimmed.remaining);
-        if (result)
+        if (result) {
+          if (trimmed.ast && trimmed.ast!="") {
+            // store whitespace outside main ast, indexed by index of next token
+            savedState.whitespace[trimmed.remaining.index] = trimmed.ast;
+          }
+          if (result.ast) {
+            // can't attach info to plain string, so wrap
+            if (typeof result.ast==="string")
+              result.ast = new Rule("",result.ast);
+
+            // attach source location, for access to whitespace
+            result.ast.index = trimmed.remaining.index;
+          }
           cached = make_result(result.remaining,
                                trimmed.matched + (result.matched||""),
-                               [trimmed.ast, result.ast]
+                               result.ast
                               );
-        else
+        } else
           cached = result;
         savedState.putCached(pid, cached);
         return cached;
@@ -415,7 +453,7 @@ function join_action(p, sep) {
 //   MemberExpression [ Expression ]
 //   MemberExpression . Identifier
 //   new MemberExpression Arguments
-function left_factor(ast) {
+function left_factor(ast) { return ast; // ONGOING: ast flattening
     return foldl(function(v, action) {
                      return [ v, action ];
                  },
@@ -502,7 +540,10 @@ function sequence() {
             if(result) {
               state = result.remaining;
               if(result.ast != undefined) {
-                  ast.push(result.ast);
+                  if (result.ast instanceof Array)
+                    ast = ast.concat(result.ast); // flatten ast by default
+                  else
+                    ast.push(result.ast);
                   matched = matched + (result.matched||"");
               }
             } else {
@@ -741,7 +782,8 @@ function chain(p, s, f) {
     var p = toParser(p);
 
     var parser = action(sequence(p, repeat0(action(sequence(s, p), f))),
-                  function(ast) { return [ast[0]].concat(ast[1]); });
+                  function(ast) { return ast; // ONGOING: ast flattening
+                                  return [ast[0]].concat(ast[1]); });
     parser.toString = function() {
       var ps="...",ss="...";
       if (depth++<=max_depth) {
@@ -877,7 +919,7 @@ function not(p) {
 function binops(ops,e) {
   var opsParser = whitespace( ops.length===1 ? token(ops[0]) : choice.apply(null,ops) );
   return action(sequence(whitespace(e), repeat0(sequence(opsParser, whitespace(e)))),
-                function(ast){
+                function(ast){ return ast; // ONGOING: ast flattening
                   if (ast[1].length===0)
                     return ast[0]; // e : no op, no nesting
                   else
@@ -894,11 +936,19 @@ var rules = {},       // map rule name -> rule representation
 var stack_pattern = null; // /^(?!pc)/;
 function set_stack_pattern(pat) { pat && (stack_pattern = pat); }
 
+// simple parse tree grammar-rule-based node representation
+function Rule(name,ast) {
+  this.name = name;
+  this.ast  = ast;
+}
+Rule.prototype.toString = function () { return "{"+this.name+":"+this.ast+"}"; }
+
 // rule attaches a name to a parser combinator, representing a rule 'lhs : rhs'
 // used for tracing (which rule is active, and what does it return?),
 // debugging (what is the grammar path to the currently active parser?),
 // self-representation (avoiding recursion in parser.toString, listing finite 
 //                      set of rules instead of an infinite grammar expansion)
+// parse trees (avoid default "ast" flattening by prefixing rules with '#')
 function rule(name,p) {
   var parser = function(state) {
     rule_stack.push(name.match(stack_pattern) ? name+':'+state.index : '-');
@@ -922,6 +972,9 @@ function rule(name,p) {
 
     } else
         var r = p(state); 
+
+    if (r && name.charAt(0)==='#') r.ast = new Rule(name,r.ast);
+
     rule_stack.pop();
 
     return r;
@@ -947,6 +1000,7 @@ return {
   ps : ps,
   log_tree : log_tree,
   log_array : log_array,
+  log_ast_as_string : log_ast_as_string,
   token : token,
   ch : ch,
   range : range,
