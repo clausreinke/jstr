@@ -148,7 +148,7 @@ function ps(str) {
 // was successfully matched by the parser.
 // 'ast' is the AST returned by the successfull parse.
 function make_result(r, matched, ast) {
-        return { remaining: r, matched: matched, ast: ast };
+    return { remaining: r, matched: matched, ast: ast };
 }
 
 // 'r' is the remaining string to be parsed.
@@ -157,8 +157,8 @@ function make_result(r, matched, ast) {
 // 'ast' is the AST returned by the partially successfull parse.
 // 'msg' is the error message terminating the partial parse
 function make_partial_result(r, matched, ast, msg) {
-        return { remaining: r, matched: matched, ast: ast, 
-                 msg: msg, rule_stack: rule_stack };
+    return { remaining: r, matched: matched, ast: ast,
+             msg: msg, rule_stack: rule_stack };
 }
 
 var parser_id = 0;
@@ -885,29 +885,45 @@ function binops(ops,e) {
                 });
 }
 
-var rules = {}, listrules = [], rule_stack = [], nesting = '';
+var rules = {},       // map rule name -> rule representation
+    listrules = [],   // list of rule names
+    rule_stack = [],  // grammar path to currently active rule
+    nesting = '';     // trace prefix for nested grammar rule invocations
 
+// filter pattern for grammar rule stack
 var stack_pattern = null; // /^(?!pc)/;
 function set_stack_pattern(pat) { pat && (stack_pattern = pat); }
 
+// rule attaches a name to a parser combinator, representing a rule 'lhs : rhs'
+// used for tracing (which rule is active, and what does it return?),
+// debugging (what is the grammar path to the currently active parser?),
+// self-representation (avoiding recursion in parser.toString, listing finite 
+//                      set of rules instead of an infinite grammar expansion)
 function rule(name,p) {
   var parser = function(state) {
     rule_stack.push(name.match(stack_pattern) ? name+':'+state.index : '-');
     if (trace && name.match(trace) && (!no_trace || !name.match(no_trace))) {
-      var input = state.substring(0,30);
+
+      var input = state.substring(0,30); // TODO: use a couple of lines instead of 30 chars
+
       log(nesting+'>'+name+"("+state.line+"/"+state.index+")["
           +input.split(/\r\n|\r|\n/)[0]+"]");
+
       nesting+='|'; 
         var r = p(state); 
       nesting=nesting.substring(1);
+
       log(nesting+'<'+name+"("+state.line+"/"+state.index+")"
           +(r ? " = "+r.matched
               : "[failed]"));
+
       if (r && r.matched && r.matched.substring(0,30)!==input.substring(0,r.matched.length))
         log('WARNING: possibly bogus parser return '+r.matched.length);
+
     } else
         var r = p(state); 
     rule_stack.pop();
+
     return r;
   };
   parser.toString = function () {
