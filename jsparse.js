@@ -26,8 +26,6 @@
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
-// without this line, ff4 execution times multiply x5 - I still don't believe it.
-
 var pc = (function(){
 
 function foldl(f, initial, seq) {
@@ -44,7 +42,13 @@ function log_tree(pre,ast) {
       // log_tree(pre+'-',ast[i]); // less interesting/confusing output variation
   else if (ast instanceof Rule)
     log_tree(pre/* +"{"+ast.name+"}" */,ast.ast); // names too long, obscure tree
-  else
+  else if (ast instanceof Named)
+    log_tree(pre/* +"."+ast.name */,ast.ast); // names too long, obscure tree
+  else if (ast instanceof Node) {
+    for (var n in ast)
+      if (ast.hasOwnProperty(n))
+        log_tree(pre+"."+n+":",ast[n]);
+  } else
     log(pre+'|'+ast+'|');
 }
 
@@ -76,6 +80,10 @@ function log_ast_as_string(whitespace,ast) {
           aux(ast[i]);
       else if (ast instanceof Rule)
         aux(ast.ast);
+      else if (ast instanceof Node)
+        // Node asts don't store whitespace references
+        // Node ast unparsing requires complex interpretation..
+        throw("Sorry, unparsing of AST Node not implemented.");
       else
         result.push(ast);
     }
@@ -296,8 +304,6 @@ function wrange(l,u) {
   return parser;
 }
 
-function dummy(){} // ff4 is going to make me see ghosts..
-
 function regex(r) {
     var pid = parser_id++;
     if (!cache.regex[r]) cache.regex[r] = [];
@@ -388,7 +394,7 @@ function whitespace(p) {
           if (result.ast) {
             // can't attach info to plain string, so wrap
             if (typeof result.ast==="string")
-              result.ast = new Rule("",result.ast);
+              result.ast = new String(result.ast);
 
             // attach source location, for access to whitespace
             result.ast.index = trimmed.remaining.index;
@@ -515,6 +521,69 @@ function nothing_p(state) {
 }
 nothing_p.toString = function() { return "nothing_p"; };
 
+// add sub ast to ast Array; produce flat array by default
+// (Rule can be used to preserve parse tree structure;
+//  Named can be used to name ast substructures)
+function ast_add(ast,sub) {
+  if (sub instanceof Array)
+    return ast.concat(sub);   // flatten ast by default
+  else
+    return ast.concat([sub]);
+}
+
+// ast node;
+// TODO: - add source location
+//       - what about whitespace/comments?
+//       - add original ast stream, for unparsing?
+//       - watch out: keep ES and general PC aspects separate
+function Node(type) { this.type = type; }
+Node.prototype.toString = function() {
+  return "Node("+this.type+")";
+}
+
+// TODO: current wrap/as toString is good for reproducing rules,
+//        but confusing for error messages (where users don't care
+//        about AST construction)
+
+// AST building, make a Node of type from parser 'p's Array ast result
+// named ast elements become properties of the resulting Node
+function wrap(type,p) {
+  var parser = action(p, function(ast) {
+                   var node = new Node(type);
+                   // for (var n in ast.named_fields) node[n] = ast[name];
+                   if (ast instanceof Array) {
+                     for (var i=0; i<ast.length; i++)
+                       if (ast[i] instanceof Named)
+                         node[ast[i].name] = ast[i].ast;
+                       else if (ast[i] instanceof Rule)
+                         throw('Sorry, mixing of parse tree and asts currently not recommended.');
+                       else
+                         ; // dropping/losing info here ??
+                   } else if (ast instanceof Named)
+                     node[ast.name] = ast.ast;
+                   else if (ast instanceof Rule)
+                     throw('Sorry, mixing of parse tree and asts currently not recommended.');
+                   else
+                     ; // dropping/losing info here ??
+                   return node;
+                 } );
+  parser.toString = function() { return 'wrap("'+type+'",'+p+')'; }
+  return parser;
+}
+
+// named ast element
+function Named(name,ast) { this.name = name; this.ast = ast; }
+
+// 'as(name,p)' parses as 'p', but produces a named ast result
+// 'as(name)' but produces a named null ast result
+// (named ast elements end up stored in Node properties)
+function as(name,p) {
+  var p = typeof p==="undefined" ? epsilon_p : toParser(p);
+  var parser = action(p, function(ast){ return new Named(name,ast||null); } );
+  parser.toString = function() { return 'as("'+name+'",'+p+')'; }
+  return parser;
+}
+
 // 'sequence' is a parser combinator that processes a number of parsers in sequence.
 // It can take any number of arguments, each one being a parser. The parser that 'sequence'
 // returns succeeds if all the parsers in the sequence succeeds. It fails if any of them fail.
@@ -540,10 +609,7 @@ function sequence() {
             if(result) {
               state = result.remaining;
               if(result.ast != undefined) {
-                  if (result.ast instanceof Array)
-                    ast = ast.concat(result.ast); // flatten ast by default
-                  else
-                    ast.push(result.ast);
+                  ast = ast_add(ast,result.ast);
                   matched = matched + (result.matched||"");
               }
             } else {
@@ -599,6 +665,53 @@ function wsequence() {
       return "wsequence("+(depth++>max_depth?"...":args)+")";
     };
     return parser;
+}
+
+// 'then(p,f)' is a monadic variant of a two-parser sequence;
+// it parses with 'p', followed by 'f' applied to 'p's ast
+// NOTE: does not currently store 'p's ast (in general, it should? but
+//        that gets in the way for its current main use case leftrec)
+function then(p,f) {
+  // TODO: caching
+  var parser = function(input) {
+                 var cached  = false;
+                 var ast     = [];
+                 var matched = "";
+
+                 var pr = p(input);
+
+                 if (pr) {
+                   if (pr.ast != undefined) {
+                     // ast = ast_add(ast,pr.ast);
+                     matched = matched + (pr.matched||"");
+                   }
+
+                   var fr = f(pr.ast)(pr.remaining);
+
+                   if (fr) {
+                     if (fr.ast != undefined) {
+                       ast = ast_add(ast,fr.ast);
+                       matched = matched + (fr.matched||"");
+                     }
+                     cached = make_result(fr.remaining, matched, ast);
+                   }
+                 }
+                 return cached;
+               };
+  parser.toString = function(){ return "then("+p+","+f+")"; };
+  return parser;
+}
+
+// 'leftrec' captures a typical left-recursive grammar pattern:
+//    rule : base | rule rest1 | rule rest2
+// becomes
+//    leftrec(base,function(left){ return choice(sequence(left,rest1),
+//                                               sequence(left,rest2)); })
+function leftrec(i,base,rec) {
+  return rule("leftrec("+i+")",then(base,function(ast){
+                                var base = const_p(ast);
+                                return choice(leftrec(i+1,rec(base),rec),base);
+                               }));
 }
 
 // 'choice' is a parser combinator that provides a choice between other parsers.
@@ -702,7 +815,7 @@ function repeat0(p) {
         var matched = "";
         var result;
         while(result = p(state.from(0))) {
-            ast.push(result.ast);
+            ast = ast_add(ast,result.ast);
             matched = matched + result.matched;
             if(result.remaining.index == state.index)
                 break;
@@ -735,7 +848,7 @@ function repeat1(p) {
             cached = result;
         else {
             while(result) {
-                ast.push(result.ast);
+                ast = ast_add(ast,result.ast);
                 matched = matched + result.matched;
                 if(result.remaining.index == state.index)
                     break;
@@ -835,11 +948,20 @@ function list(p, s) {
 // Like list, but tokens consume whitespace by default
 function wlist(p, s) { return list(toParser(p,true),toParser(s,true)); }
 
-// A parser that always returns a zero length match
+// A parser that always returns a zero length match, no ast
 function epsilon_p(state) {
     return make_result(state, "", undefined);
 }
 epsilon_p.toString = function() { return "epsilon_p"; }
+
+// A parser that always returns a zero length match, constant ast
+function const_p(c) {
+  var parser = function(state) {
+                  return make_result(state, "", c);
+                };
+  parser.toString = function() { return "const_p("+c+")"; }
+  return parser;
+}
 
 // Allows attaching of a function anywhere in the grammar. If the function returns
 // true then parse succeeds otherwise it fails. Can be used for testing if a symbol
@@ -918,12 +1040,19 @@ function not(p) {
 // binary operators '[op,..]' with arguments 'e': e op e op e ..
 function binops(ops,e) {
   var opsParser = whitespace( ops.length===1 ? token(ops[0]) : choice.apply(null,ops) );
+  return sequence(whitespace(e), repeat0(sequence(opsParser, whitespace(e))));
+}
+
+// binary operators '[op,..]' with arguments 'e', associating to the left:
+// ((e op e) op e) ..
+function binops_left_assoc(ops,e,f) {
+  var opsParser = whitespace( ops.length===1 ? token(ops[0]) : choice.apply(null,ops) );
   return action(sequence(whitespace(e), repeat0(sequence(opsParser, whitespace(e)))),
-                function(ast){ return ast; // ONGOING: ast flattening
-                  if (ast[1].length===0)
-                    return ast[0]; // e : no op, no nesting
-                  else
-                    return [ast[0]].concat(ast[1]); // [e,op,e,op,..] : flat
+                function(ast){
+                  while (ast.length>=3) {
+                    ast = [f(ast[0],ast[1],ast[2])].concat(ast.slice(3));
+                  }
+                  return ast[0];
                 });
 }
 
@@ -1001,6 +1130,7 @@ return {
   log_tree : log_tree,
   log_array : log_array,
   log_ast_as_string : log_ast_as_string,
+  toParser : toParser,
   token : token,
   ch : ch,
   range : range,
@@ -1017,8 +1147,10 @@ return {
   nothing_p : nothing_p,
   sequence : sequence,
   wsequence : wsequence,
+  then : then,
   choice : choice,
   wchoice : wchoice,
+  leftrec : leftrec,
   butnot : butnot,
   repeat0 : repeat0,
   repeat1 : repeat1,
@@ -1029,10 +1161,15 @@ return {
   list : list,
   wlist : wlist,
   epsilon_p : epsilon_p,
+  const_p : const_p,
   semantic : semantic,
   and : and,
   not : not,
   binops : binops,
+  binops_left_assoc : binops_left_assoc,
+  Node : Node,
+  wrap : wrap,
+  as : as,
   rule : rule,
   log_rules : log_rules,
   set_trace : set_trace,

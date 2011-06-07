@@ -28,12 +28,27 @@
 
 // TODO: - check for missing details
 //       - ASI (in progress)
+//       - AST (in progress)
+//       - NoIn variants
+//       - get/set
 //       - strict mode
-//       - do we need to refine the regexp grammar?
+//       - do we need to refine the regexp grammar, for early errors?
+
+/*
+ suggestion: change syntax highlighting for Vim to distinguish AST/Rule strings
+
+  syn match AST /wrap("[^"]*"/hs=s+5
+  syn match AST /as("[^"]*"/hs=s+3
+  hi link AST Special
+  syn match RULE /rule("[^"]*"/hs=s+5
+  hi link AST Type
+
+ */
 
 var grammar = function(pc){
 
 // import parser combinators
+var toParser = pc.toParser;
 var token = pc.token;
 var ch = pc.ch;
 var range = pc.range;
@@ -49,8 +64,10 @@ var negate = pc.negate;
 var nothing_p = pc.nothing_p;
 var sequence = pc.sequence;
 var wsequence = pc.wsequence;
+var then = pc.then;
 var choice = pc.choice;
 var wchoice = pc.wchoice;
+var leftrec = pc.leftrec;
 var butnot = pc.butnot;
 var repeat0 = pc.repeat0;
 var repeat1 = pc.repeat1;
@@ -60,8 +77,16 @@ var wlist = pc.wlist;
 var not = pc.not;
 var and = pc.and;
 var epsilon_p = pc.epsilon_p;
-var binops = pc.binops;
+var const_p = pc.const_p;
+var binops_left_assoc = pc.binops_left_assoc;
+var Node = pc.Node;
+// var wrap = function(_,p) { return toParser(p); };
+// var as = function(_,p) { return p ? toParser(p) : epsilon_p; };
+var wrap = pc.wrap;
+var as = pc.as;
 var rule = pc.rule;
+var log_tree = pc.log_tree;
+var log_array = pc.log_array;
 
 // Forward Declarations
 var SourceElement = 
@@ -127,8 +152,10 @@ whitespace.trim =
 
 var NullLiteral = 
     rule("NullLiteral",token("null"));
+
 var BooleanLiteral = 
     rule("BooleanLiteral",choice("true", "false"));
+
 var Zero = 
     rule("Zero",token("0"));
 var DecimalDigit = 
@@ -157,6 +184,7 @@ var HexIntegerLiteral =
     rule("HexIntegerLiteral",sequence(choice("0x", "0X"), repeat1(HexDigit)));
 var NumericLiteral = 
     rule("NumericLiteral",choice(HexIntegerLiteral, DecimalLiteral));
+
 var SingleEscapeCharacter = 
     rule("SingleEscapeCharacter",choice("'", "\"", "\\", "b", "f", "n", "r", "t", "v"));
 var NonEscapeCharacter = 
@@ -229,11 +257,17 @@ var RegularExpressionFlags =
     rule("RegularExpressionFlags",repeat0(IdentifierPart));
 var RegularExpressionLiteral = 
     rule("RegularExpressionLiteral",
-    sequence("/",RegularExpressionBody,"/",RegularExpressionFlags));
+    sequence("/",join_action(RegularExpressionBody,""),"/",join_action(RegularExpressionFlags,"")));
 
 var Literal = 
     rule("Literal",
-    choice(NullLiteral, BooleanLiteral, NumericLiteral, StringLiteral, RegularExpressionLiteral));
+    wrap("Literal",
+    as("value",
+      choice(action(NullLiteral,function(ast){return null;}),
+             action(BooleanLiteral,function(ast){return {"true":true,"false":false}[ast];}),
+             action(NumericLiteral,function(ast){return Number(ast);}),
+             action(StringLiteral,function(ast){return ast;}),
+             action(RegularExpressionLiteral,function(ast){return RegExp(ast[1],ast[3]);})))));
 
 var Keyword = 
     rule("Keyword",
@@ -288,81 +322,144 @@ var IdentifierName =
          return ast[0].concat(ast[1]); 
      }));
 var Identifier = 
-    rule("Identifier",whitespace(butnot(IdentifierName, ReservedWord)));
+    rule("Identifier",
+    whitespace(
+    wrap("Identifier",as("name",butnot(IdentifierName, ReservedWord)))));
 
 var StatementList = 
     rule("StatementList",repeat1(Statement));
 var Block = 
-    rule("Block",wsequence("{", optional(StatementList), "}"));
+    rule("Block",
+    wrap("BlockStatement",wsequence("{", as("body",optional(StatementList)), "}")));
 var Initialiser = 
     rule("Initialiser",wsequence("=", AssignmentExpression));
 var VariableDeclaration = 
-    rule("VariableDeclaration",wsequence(Identifier, optional(Initialiser)));
+    rule("VariableDeclaration",
+    wrap("",wsequence(as("id",Identifier), as("init",optional(Initialiser)))));
 var VariableDeclarationList = 
     rule("VariableDeclarationList",wlist(VariableDeclaration, ","));
-var VariableStatement = 
-    rule("VariableStatement",wsequence("var", VariableDeclarationList,SEMI));
+var VariableStatement = // TODO: kind: "var"
+    rule("VariableStatement",
+    wrap("VariableDeclaration",
+    wsequence("var", as("declarations",VariableDeclarationList),SEMI)));
 
 var EmptyStatement = 
-    rule("EmptyStatement",wtoken(";")); // no ASI
+    rule("EmptyStatement",wrap("EmptyStatement",wtoken(";"))); // no ASI
 
 var IfStatement = 
     rule("IfStatement",
-    choice(wsequence("if", "(", Expression, ")", Statement, "else", Statement),
-      wsequence("if", "(", Expression, ")", Statement)));
+    wrap("IfStatement",
+    choice(wsequence("if", "(", as("test",Expression), ")",
+                     as("consequent",Statement), "else", as("alternate",Statement)),
+           wsequence("if", "(", as("test",Expression), ")",
+                     as("consequent",Statement), as("alternate")))));
+
+var WhileStatement =
+    wrap("WhileStatement",
+    wsequence("while", "(", as("test",Expression), ")", as("body",Statement)));
+
+var DoWhileStatement =
+    wrap("DoWhileStatement",
+    wsequence("do", as("body",Statement), "while", "(", as("test",Expression), ")", SEMI));
+
+var ForStatement = // TODO: use NoIn variants
+    choice(
+    wrap("ForStatement",
+      wsequence("for", "(", as("init",optional(Expression)), ";",
+                            as("test",optional(Expression)), ";",
+                            as("update",optional(Expression)), ")",
+                            as("body",Statement))),
+    wrap("ForStatement",
+      wsequence("for", "(", "var", as("init",VariableDeclarationList), ";",
+                            as("test",optional(Expression)), ";",
+                            as("update",optional(Expression)), ")",
+                            as("body",Statement))),
+    wrap("ForInStatement",
+      wsequence("for", "(", as("left",LeftHandSideExpression),
+                            "in", as("right",Expression), ")",
+                            as("body",Statement))),
+    wrap("ForInStatement",
+      wsequence("for", "(", "var", as("left",VariableDeclaration),
+                            "in", as("right",Expression), ")",
+                            as("body",Statement))))
 
 var IterationStatement =
     rule("IterationStatement",
-    choice(wsequence("do", Statement, "while", "(", Expression, ")", SEMI),
-      wsequence("while", "(", Expression, ")", Statement),
-      wsequence("for", "(", optional(Expression), ";", optional(Expression), ";", optional(Expression), ")", Statement),
-      wsequence("for", "(", "var", VariableDeclarationList, ";", optional(Expression), ";", optional(Expression), ")", Statement),
-      wsequence("for", "(", LeftHandSideExpression, "in", Expression, ")", Statement),
-      wsequence("for", "(", "var", VariableDeclaration, "in", Expression, ")", Statement)));
+    choice(DoWhileStatement,
+           WhileStatement,
+           ForStatement));
 
+// TODO: check the optional/ASI interaction here
 var ContinueStatement = 
-    rule("ContinueStatement",choice(wsequence("continue", SEMI),
-                                    wsequence("continue", NLTH, optional(Identifier), SEMI)));
+    rule("ContinueStatement",
+    wrap("ContinueStatement",
+    choice(wsequence("continue", SEMI, as("label")),
+           wsequence("continue", NLTH, as("label",optional(Identifier)), SEMI))));
 var BreakStatement = 
-    rule("BreakStatement",choice(wsequence("break", SEMI),
-                                 wsequence("break", NLTH, optional(Identifier), SEMI)));
+    rule("BreakStatement",
+    wrap("BreakStatement",
+    choice(wsequence("break", SEMI, as("label")),
+           wsequence("break", NLTH, as("label",optional(Identifier)), SEMI))));
 var ReturnStatement = 
-    rule("ReturnStatement",choice(wsequence("return", SEMI),
-                                  wsequence("return", NLTH, Expression, SEMI)));
+    rule("ReturnStatement",
+    wrap("ReturnStatement",
+    choice(wsequence("return", SEMI, as("argument")),
+           wsequence("return", NLTH, as("argument",Expression), SEMI))));
 var WithStatement = 
-    rule("WithStatement",wsequence("with", "(", Expression, ")", Statement));
+    rule("WithStatement",
+    wrap("WithStatement",
+    wsequence("with", "(", as("object",Expression), ")", as("body",Statement))));
 
 
+// NOTE: repeat0(Statement) instead of optional(StatementList), because of AST
 var CaseClause =
-    rule("CaseClause",wsequence("case", Expression, ":", optional(StatementList)));
+    rule("CaseClause",
+    wrap("SwitchCase",
+    wsequence("case", as("test",Expression), ":", as("consequent",repeat0(Statement)))));
 var DefaultClause =
-    rule("DefaultClause",wsequence("default", ":", optional(StatementList)));
+    rule("DefaultClause",
+    wrap("SwitchCase",
+    wsequence("default", ":", as("consequent",repeat0(Statement)),as("test"))));
 var CaseBlock =
     rule("CaseBlock",
     choice(wsequence("{", repeat0(CaseClause), "}"),
       wsequence("{", repeat0(CaseClause), DefaultClause, repeat0(CaseClause), "}")));
 
 var SwitchStatement = 
-    rule("SwitchStatement",wsequence("switch", "(", Expression, ")", CaseBlock));
-var LabelledStatement = 
-    rule("LabelledStatement",wsequence(Identifier, ":", Statement));
-var ThrowStatement = 
-    rule("ThrowStatement", wsequence("throw", NLTH, Expression, SEMI));
+    rule("SwitchStatement",
+    wrap("SwitchStatement",
+    wsequence("switch", "(", as("test",Expression), ")", as("cases",CaseBlock))));
 
-var Catch = rule("Catch",wsequence("catch", "(", Identifier, ")", Block));
+var LabelledStatement =
+    rule("LabelledStatement",
+    wrap("LabeledStatement",wsequence(as("label",Identifier), ":", as("body",Statement))));
+
+var ThrowStatement =
+    rule("ThrowStatement",
+    wrap("ThrowStatement",
+    wsequence("throw", NLTH, as("argument",Expression), SEMI)));
+
+var Catch =
+    rule("Catch",
+    wrap("CatchClause",
+    wsequence("catch", "(", as("param",Identifier), ")", as("body",Block))));
 var Finally = rule("Finally",wsequence("finally", Block));
 var TryStatement = 
     rule("TryStatement",
-    choice(wsequence("try", Block, Catch),
-      wsequence("try", Block, Finally),
-      wsequence("try", Block, Catch, Finally)));
-var DebuggerStatement = rule("DebuggerStatement",wsequence("debugger",SEMI));
+    wrap("TryStatement",
+    choice(wsequence("try", as("block",Block), as("handler",Catch), as("finalizer",Finally)),
+           wsequence("try", as("block",Block), as("finalizer",Finally), as("handler")),
+           wsequence("try", as("block",Block), as("handler",Catch), as("finalizer")))));
+
+var DebuggerStatement =
+    rule("DebuggerStatement",
+    wrap("DebuggerStatement",wsequence("debugger",SEMI)));
 
 var ExpressionStatement = 
     rule("ExpressionStatement",
-    whitespace(
-    choice(sequence(choice("{", "function"), nothing_p),
-           sequence(Expression,SEMI))));
+    wrap("ExpressionStatement",whitespace(
+    choice(sequence(choice("{", "function"), nothing_p), // TODO: rewrite
+           sequence(as("expression",Expression),SEMI)))));
 var Statement = 
     rule("Statement",
     choice(Block,
@@ -390,49 +487,110 @@ var FormalParameterList =
     rule("FormalParameterList",wlist(Identifier, ","));
 var FunctionExpression = 
     rule("FunctionExpression",
-    wsequence("function", optional(Identifier), "(", optional(FormalParameterList), ")", 
-      choice(wsequence("{", FunctionBody, "}") /* ,
-             wsequence("=>", FunctionBody) */ )));
+    wrap("FunctionExpression",
+    wsequence("function", as("id",optional(Identifier)),
+              "(", as("params",optional(FormalParameterList)), ")",
+       choice(wsequence("{", as("body",FunctionBody), "}")
+              /* towards paren-free definitions ,
+              // focus on main issue: expression-returning functions
+              // TODO: how to insert 'return' _after_ whitespace/linebreaks
+              action(wsequence("=>", AssignmentExpression),
+                     function(ast) {return ["{","return","(",ast.slice(1),")",";","}"];}) */ ))));
 
 var FunctionDeclaration = 
     rule("FunctionDeclaration",
-    wsequence("function", Identifier, "(", optional(FormalParameterList), ")", 
-      choice(wsequence("{", FunctionBody, "}") /*,
-             wsequence("=>", FunctionBody) */ )));
+    wrap("FunctionDeclaration",
+    wsequence("function", as("id",Identifier),
+             "(", as("params",optional(FormalParameterList)), ")",
+      choice(wsequence("{", as("body",FunctionBody), "}")
+             /* towards paren-free definitions ,
+             // focus on main issue: expression-returning functions
+             // TODO: how to insert 'return' _after_ whitespace/linebreaks
+             action(wsequence("=>", AssignmentExpression),
+                    function(ast) {return ["{","return","(",ast.slice(1),")",";","}"];}) */ ))));
 
 
 var PrimaryExpression = 
     function(input) { return PrimaryExpression(input); };
 
+// TODO: add reason, suggest fixes (add semi or indent), make warning indent-dependent
+function WARN_SEMI(parser) {
+  return function(input) {
+    var result = parser(input);
+    // no error => no error correction => no ASI
+    if (result && input.NL) log("WARNING: no semicolon inserted before line "+input.line);
+    return result;
+  }
+}
+
 var ArgumentList = rule("ArgumentList",wlist(AssignmentExpression, ","));
 var Arguments = 
     rule("Arguments",
     choice(wsequence("(", ")"),
-      wsequence("(", ArgumentList, ")") /*,
-      wsequence("@", AssignmentExpression) */));
+      wsequence("(", ArgumentList, ")")
+
+      /* towards paren-free application ,
+      // some params can be paren-free, right now
+      // TODO: - (Expression) is taken for old-style ArgumentList
+      //          (suggestion: once spreads, rest, and destructuring are available,
+      //                       remove ArgumentList in favour of proper Array arguments,
+      //                       freeing (e) for parenthesized function arguments)
+      //       - [e] ArrayLiteral overlaps property access in MemberExpression/CallExpression
+      //          (suggestion: replace obj[x] with obj.[x] for property access, freeing
+      //                       obj [x] for function call with ArrayLiteral)
+      whitespace(WARN_SEMI(
+      action(choice(sequence(not(wchoice("(","[")),PrimaryExpression),FunctionExpression),
+             function(ast) {return ["(",ast,")"]; })
+      )),
+
+      // right-associative application operator, for paren-free params
+      // (the mnemonic "application-with-greater-right" is merely
+      //  a placeholder for proper syntax; "@" is already taken)
+      action(wsequence("@<", AssignmentExpression),
+             function(ast){return ["(",ast.slice(1),")"];}) */
+
+      // NOTE: no left-associative infix application operator for now
+      ));
 
 var MemberExpression = function(input) { return MemberExpression(input); };
 var MemberExpression =
     rule("MemberExpression",
-    left_factor_action(sequence(choice(wsequence("new", MemberExpression, Arguments),
-                                       PrimaryExpression,
-                                       FunctionExpression),
-                                repeat0(choice(wsequence("[", Expression, "]"),
-                                               wsequence(".", Identifier))))));
+    leftrec(0,
+            choice(wrap("NewExpression",
+                     wsequence("new", as("constructor",MemberExpression),
+                                      as("arguments",Arguments))),
+                   PrimaryExpression,
+                   FunctionExpression),function(left) {
+      return choice(wrap("MemberExpression",
+                      wsequence(as("object",left),"[", as("property",Expression), "]",
+                                as("computed",const_p(true)))),
+                    wrap("MemberExpression",
+                      wsequence(as("object",left),".", as("property",Identifier),
+                                as("computed",const_p(false))))); }) );
 
 var NewExpression = function(input) { return NewExpression(input); };
 var NewExpression = 
     rule("NewExpression",
     choice(MemberExpression,
-      wsequence("new", NewExpression)));
+           wrap("NewExpression",
+             wsequence("new", as("constructor",NewExpression),as("arguments")))));
+
 var CallExpression = 
     rule("CallExpression",
-    left_factor_action(sequence(sequence(MemberExpression, Arguments),
-                                repeat0(choice(Arguments,
-                                  wsequence("[", Expression, "]"),
-                                  wsequence(".", Identifier))))));
-  
-var LeftHandSideExpression = 
+    leftrec(0,
+            wrap("CallExpression",
+              sequence(as("callee",MemberExpression),as("arguments",Arguments))),
+      function(left) {
+        return choice(wrap("CallExpression",
+                        sequence(as("callee",left),as("arguments",Arguments))),
+                      wrap("MemberExpression",
+                        wsequence(as("object",left),"[",as("property",Expression),"]",
+                                  as("computed",const_p(true)))),
+                      wrap("MemberExpression",
+                        wsequence(as("object",left),".",as("property",Identifier),
+                                  as("computed",const_p(false))))); }) );
+
+var LeftHandSideExpression =
     rule("LeftHandSideExpression",choice(CallExpression, NewExpression));
 
 var AssignmentOperator = 
@@ -476,96 +634,136 @@ var UnaryExpression =
 var PostfixExpression = 
     function(input) { return PostfixExpression(input); };
 
+var UpdateOperator =
+    wrap("UpdateOperator",as("token",choice("++","--")));
+
 var PostfixExpression =
     rule("PostfixExpression",
-    choice(wsequence(LeftHandSideExpression, NLTH, "++"),
-      wsequence(LeftHandSideExpression, NLTH, "--"),
-      LeftHandSideExpression));
+    choice(wrap("UpdateExpression",
+            wsequence(as("argument",LeftHandSideExpression),
+                      NLTH,
+                      as("operator",UpdateOperator),
+                      as("prefix",const_p(false)))),
+           LeftHandSideExpression));
+
+var UnaryOperator =
+    wrap("UnaryOperator",as("token",choice("delete","void","typeof","+","-","~","!")));
 
 var UnaryExpression =
     rule("UnaryExpression",
     choice(PostfixExpression,
-      wsequence("delete", UnaryExpression),
-      wsequence("void", UnaryExpression),
-      wsequence("typeof", UnaryExpression),
-      wsequence("++", UnaryExpression),
-      wsequence("--", UnaryExpression),
-      wsequence("+", UnaryExpression),
-      wsequence("-", UnaryExpression),
-      wsequence("~", UnaryExpression),
-      wsequence("!", UnaryExpression)));
+     wrap("UpdateExpression",wsequence(as("operator", UpdateOperator),
+                                       as("argument",UnaryExpression),
+                                       as("prefix",const_p(true)))),
+     wrap("UnaryExpression",wsequence(as("operator",UnaryOperator),
+                                      as("argument",UnaryExpression)))
+     ));
+
+function wrap_binop(left,op,right) {
+  var node = new Node("BinaryExpression");
+  node.left     = left;
+  node.operator = new Node("BinaryOperator")
+  node.operator.token = op;
+  node.right    = right;
+  return node;
+}
 
 var MultiplicativeExpression =
-    rule("MultiplicativeExpression", binops(["*","/","%"], UnaryExpression));
+    rule("MultiplicativeExpression",
+    binops_left_assoc(["*","/","%"], UnaryExpression,wrap_binop));
 
 var AdditiveExpression =
-    rule("AdditiveExpression", binops(["+","-"], MultiplicativeExpression));
+    rule("AdditiveExpression",
+    binops_left_assoc(["+","-"], MultiplicativeExpression,wrap_binop));
 
 var ShiftExpression = 
-    rule("ShiftExpression", binops(["<<",">>>",">>"], AdditiveExpression));
+    rule("ShiftExpression",
+    binops_left_assoc(["<<",">>>",">>"], AdditiveExpression,wrap_binop));
 
 var RelationalExpression =
-    rule("RelationalExpression", binops(["<=",">=","<",">","instanceof"], ShiftExpression));
+    rule("RelationalExpression",
+    binops_left_assoc(["<=",">=","<",">","instanceof"], ShiftExpression,wrap_binop));
 
 var EqualityExpression = // TODO: what about the ..NoIn variants?
-    rule("EqualityExpression", binops(["===","!==","==","!="], RelationalExpression));
+    rule("EqualityExpression",
+    binops_left_assoc(["===","!==","==","!="], RelationalExpression,wrap_binop));
 
 var BitwiseANDExpression = 
-    rule("BitwiseANDExpression", binops(["&"], EqualityExpression));
+    rule("BitwiseANDExpression",
+    binops_left_assoc(["&"], EqualityExpression,wrap_binop));
 var BitwiseXORExpression = 
-    rule("BitwiseXORExpression", binops(["^"], BitwiseANDExpression));
+    rule("BitwiseXORExpression",
+    binops_left_assoc(["^"], BitwiseANDExpression,wrap_binop));
 var BitwiseORExpression = 
-    rule("BitwiseORExpression", binops(["|"], BitwiseXORExpression));
-var LogicalANDExpression = 
-    rule("LogicalANDExpression", binops(["&&"], BitwiseORExpression));
+    rule("BitwiseORExpression",
+    binops_left_assoc(["|"], BitwiseXORExpression,wrap_binop));
 
+// TODO: AST spec wants a LogicalExpression and LogicalOperator here - why?
+var LogicalANDExpression =
+    rule("LogicalANDExpression",
+    binops_left_assoc(["&&"], BitwiseORExpression,wrap_binop));
 var LogicalORExpression = 
-    rule("LogicalORExpression", binops(["||"], LogicalANDExpression));
+    rule("LogicalORExpression",
+    binops_left_assoc(["||"], LogicalANDExpression,wrap_binop));
 
 var ConditionalExpression = 
     rule("ConditionalExpression",
-    choice(wsequence(LogicalORExpression, "?", AssignmentExpression, ":", AssignmentExpression),
+    choice(wrap("ConditionalExpression",
+            wsequence(as("test",LogicalORExpression),
+                      "?", as("consequent",AssignmentExpression),
+                      ":", as("alternate",AssignmentExpression))),
            LogicalORExpression));
 
 var AssignmentExpression = 
     rule("AssignmentExpression",
-    choice(sequence(whitespace(LeftHandSideExpression), AssignmentOperator, AssignmentExpression),
-      ConditionalExpression));
+    choice(wrap("AssignmentExpression",
+            sequence(whitespace(as("left",LeftHandSideExpression)),
+                     as("operator",AssignmentOperator),
+                     as("right",AssignmentExpression))),
+           ConditionalExpression));
 
-var Expression = rule("Expression",wlist(AssignmentExpression, ","));
+var Expression = // TODO: don't wrap singleton list
+    rule("Expression",
+    wrap("SequenceExpression",as("expressions",wlist(AssignmentExpression, ","))));
 
+// TODO: AST spec wants nulls for elided elements
 var Elision = rule("Elision",repeat1(wtoken(",")));
 var ElementList = 
     rule("ElementList",list(sequence(optional(Elision), AssignmentExpression), wtoken(",")));
 var ArrayLiteral = 
     rule("ArrayLiteral",
-    choice(wsequence("[", optional(Elision), "]"),
-      wsequence("[", ElementList, "]"),
-      wsequence("[", ElementList, optional(Elision), "]")));
+    wrap("ArrayExpression",
+    choice(wsequence("[", as("elements",optional(Elision)), "]"),
+      wsequence("[", as("elements",ElementList), "]"),
+      wsequence("[", as("elements",sequence(ElementList, optional(Elision))), "]"))));
 
 var PropertyName =
     rule("PropertyName",whitespace(choice(Identifier, StringLiteral, NumericLiteral)));
 var PropertyNameAndValueList =
-    rule("PropertyNameAndValueList",
-    wlist(wsequence(PropertyName, ":", AssignmentExpression), ","));
+    rule("PropertyNameAndValueList", // TODO: get/set; ast "kind"
+    wlist(wsequence(as("key",PropertyName), ":", as("value",AssignmentExpression)), ","));
 var ObjectLiteral = 
     rule("ObjectLiteral",
-    choice(wsequence("{", "}"),
-      wsequence("{", PropertyNameAndValueList, "}")));
+    wrap("ObjectExpression",
+    choice(wsequence("{", as("properties"), "}"),
+           wsequence("{", as("properties",PropertyNameAndValueList), "}"))));
 
 var PrimaryExpression = 
     rule("PrimaryExpression",
     whitespace(
-    choice(wtoken("this"),
+    choice(wrap("ThisExpression",wtoken("this")),
       wsequence("(", Expression, ")"),
       Identifier,
       ArrayLiteral,
       ObjectLiteral,
       Literal)));
 var SourceElement = rule("SourceElement",choice(Statement, FunctionDeclaration));
-var Program = rule("Program",repeat0(SourceElement));
+var Program = rule("Program",wrap("Program",as("elements",repeat0(SourceElement))));
 
-return {Program : Program };  // TODO: how much else to expose here?
-                              //        won't we end up wanting everything?
+return {Program : Program
+       ,Expression : Expression
+       };
+       // TODO: how much else to expose here?
+       //        won't we end up wanting everything?
 
 };
