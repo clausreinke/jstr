@@ -47,7 +47,7 @@ function log_tree(pre,ast) {
   else if (ast instanceof Node) {
     for (var n in ast)
       if (ast.hasOwnProperty(n))
-        log_tree(pre+"."+n+":",ast[n]);
+        log_tree(pre+"."+n+":",ast[n]); // names too long..
   } else
     log(pre+'|'+ast+'|');
 }
@@ -81,9 +81,9 @@ function log_ast_as_string(whitespace,ast) {
       else if (ast instanceof Rule)
         aux(ast.ast);
       else if (ast instanceof Node)
-        // Node asts don't store whitespace references
-        // Node ast unparsing requires complex interpretation..
-        throw("Sorry, unparsing of AST Node not implemented.");
+        aux(ast.ast); // bypass AST structure, for simple generic traversal
+      else if (ast instanceof Named)
+        aux(ast.ast); // bypass AST structure, for simple generic traversal
       else
         result.push(ast);
     }
@@ -538,7 +538,11 @@ function ast_add(ast,sub) {
 //       - watch out: keep ES and general PC aspects separate
 function Node(type) { this.type = type; }
 Node.prototype.toString = function() {
-  return "Node("+this.type+")";
+  var props = [];
+  for (var p in this)
+    if (this.hasOwnProperty(p))
+      props.push(p+":"+this[p]);
+  return "Node{"+props.join(",")+"}";
 }
 
 // TODO: current wrap/as toString is good for reproducing rules,
@@ -550,7 +554,6 @@ Node.prototype.toString = function() {
 function wrap(type,p) {
   var parser = action(p, function(ast) {
                    var node = new Node(type);
-                   // for (var n in ast.named_fields) node[n] = ast[name];
                    if (ast instanceof Array) {
                      for (var i=0; i<ast.length; i++)
                        if (ast[i] instanceof Named)
@@ -565,6 +568,7 @@ function wrap(type,p) {
                      throw('Sorry, mixing of parse tree and asts currently not recommended.');
                    else
                      ; // dropping/losing info here ??
+                   node.ast = ast; // preserve full parse tree info, for faithful unparsing
                    return node;
                  } );
   parser.toString = function() { return 'wrap("'+type+'",'+p+')'; }
@@ -573,6 +577,7 @@ function wrap(type,p) {
 
 // named ast element
 function Named(name,ast) { this.name = name; this.ast = ast; }
+Named.prototype.toString = function(){ return "Named("+this.name+","+this.ast+")"; };
 
 // 'as(name,p)' parses as 'p', but produces a named ast result
 // 'as(name)' but produces a named null ast result
