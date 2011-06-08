@@ -712,11 +712,14 @@ function then(p,f) {
 // becomes
 //    leftrec(base,function(left){ return choice(sequence(left,rest1),
 //                                               sequence(left,rest2)); })
-function leftrec(i,base,rec) {
-  return rule("leftrec("+i+")",then(base,function(ast){
-                                var base = const_p(ast);
-                                return choice(leftrec(i+1,rec(base),rec),base);
-                               }));
+function leftrec(base,rec) {
+  function leftrec_aux(i,base,rec) {
+    return rule("leftrec("+i+")",then(base,function(ast){
+                                  var base = const_p(ast);
+                                  return choice(leftrec_aux(i+1,rec(base),rec),base);
+                                 }));
+  }
+  return leftrec_aux(0,base,rec);
 }
 
 // 'choice' is a parser combinator that provides a choice between other parsers.

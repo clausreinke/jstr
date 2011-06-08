@@ -555,8 +555,7 @@ var Arguments =
 var MemberExpression = function(input) { return MemberExpression(input); };
 var MemberExpression =
     rule("MemberExpression",
-    leftrec(0,
-            choice(wrap("NewExpression",
+    leftrec(choice(wrap("NewExpression",
                      wsequence("new", as("constructor",MemberExpression),
                                       as("arguments",Arguments))),
                    PrimaryExpression,
@@ -577,8 +576,7 @@ var NewExpression =
 
 var CallExpression = 
     rule("CallExpression",
-    leftrec(0,
-            wrap("CallExpression",
+    leftrec(wrap("CallExpression",
               sequence(as("callee",MemberExpression),as("arguments",Arguments))),
       function(left) {
         return choice(wrap("CallExpression",
