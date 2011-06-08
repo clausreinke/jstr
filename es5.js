@@ -108,7 +108,7 @@ var NLTH = rule("NLTH",whitespace(function(input) { // fail if NL
                         if (input.NL)
                           return nothing_p(input);
                         else
-                          return epsilon_p(input); }));
+                          return const_p("")(input); }));
 var SEMI = rule("SEMI",choice(wtoken(";"), // missing eof, anything else?
                               not(NLTH),
                               and(wtoken("}"))));
@@ -663,6 +663,7 @@ function wrap_binop(left,op,right) {
   node.operator = new Node("BinaryOperator")
   node.operator.token = op;
   node.right    = right;
+  node.ast      = [left,op,right];
   return node;
 }
 

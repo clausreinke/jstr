@@ -46,7 +46,7 @@ function log_tree(pre,ast) {
     log_tree(pre/* +"."+ast.name */,ast.ast); // names too long, obscure tree
   else if (ast instanceof Node) {
     for (var n in ast)
-      if (ast.hasOwnProperty(n))
+      if (ast.hasOwnProperty(n) && n!=='ast')
         log_tree(pre+"."+n+":",ast[n]); // names too long..
   } else
     log(pre+'|'+ast+'|');
@@ -396,6 +396,9 @@ function whitespace(p) {
             if (typeof result.ast==="string")
               result.ast = new String(result.ast);
 
+            // TODO: since the SpiderMonkey AST is evaluation-biased, 
+            //       we'll have to deal with other non-objects here..
+
             // attach source location, for access to whitespace
             result.ast.index = trimmed.remaining.index;
           }
@@ -569,6 +572,7 @@ function wrap(type,p) {
                    else
                      ; // dropping/losing info here ??
                    node.ast = ast; // preserve full parse tree info, for faithful unparsing
+                                   // TODO: investigate storage efficiency
                    return node;
                  } );
   parser.toString = function() { return 'wrap("'+type+'",'+p+')'; }
@@ -1057,9 +1061,11 @@ function binops_left_assoc(ops,e,f) {
   var opsParser = whitespace( ops.length===1 ? token(ops[0]) : choice.apply(null,ops) );
   return action(sequence(whitespace(e), repeat0(sequence(opsParser, whitespace(e)))),
                 function(ast){
+                  var white = ast.whitespace;
                   while (ast.length>=3) {
                     ast = [f(ast[0],ast[1],ast[2])].concat(ast.slice(3));
                   }
+                  if (white) log("lost whitespace in binops_left_assoc("+ops+",..)");
                   return ast[0];
                 });
 }
