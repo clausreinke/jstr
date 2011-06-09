@@ -30,11 +30,11 @@ var test = function(file,opts,pc,grammar,testcase){ // TODO: restructure args
         log("EXCEPTION "+e);
         var parsed = null;
       }
-        // jsparse.js(ff4): 1184l/8.5k
-        // jsparse.js(ie9): 1184l/6.1k
+        // jsparse.js(ff4): 1214l/9.1k
+        // jsparse.js(ie9): 1214l/7.7k
         //
-        // es5.js(ff4): 770l/4.9k
-        // es5.js(ie9): 770l/3.4k
+        // es5.js(ff4): 793l/5.1k
+        // es5.js(ie9): 793l/4.1k
         //
         // fulljslint(ff4): 6558l/53.9k
         // fulljslint(ie9): 6558l/41.6k
@@ -46,8 +46,9 @@ var test = function(file,opts,pc,grammar,testcase){ // TODO: restructure args
         // peg-0.6.1.js(ie9): 4794l/27.5k
         //
         // TODO: lines off by one, because we start at 1 and increase for every lineend
-        //       way too slow (more so since ASI and error messages)
-        //       uses too much memory now
+        //       way too slow (more so since ASI and error messages); timing unreliable
+        //       uses too much memory now (a heap profiler would be nice; about:memory
+        //        is a start); can we free some cache early? other memory hogs?
         //       how to use ie9 engine for cscript?
         //        (cscript/ie8 is unusably slow here, is it worth figuring out why?)
 
