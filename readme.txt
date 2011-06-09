@@ -2,6 +2,8 @@
 
 jstr (the 'e's are silent) stands for Javascript Transformations.
 
+https://github.com/clausreinke/jstr
+
 Right now, it only consists of an updated version of jsparse, with
 a grammar edging ever closer to ES5:
 
