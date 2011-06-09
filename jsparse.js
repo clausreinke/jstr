@@ -430,8 +430,7 @@ function action(p, f) {
 
         var x = p(state);
         if(x) {
-            x.ast = f(x.ast);
-            cached = x;
+            cached = make_result(x.remaining,x.matched,f(x.ast));
         }
         else {
             cached = x;
@@ -1117,7 +1116,9 @@ function rule(name,p) {
     } else
         var r = p(state); 
 
-    if (r && name.charAt(0)==='#') r.ast = new Rule(name,r.ast);
+    // optionally reflect grammar rule structure in ast (parse tree)
+    if (r && name.charAt(0)==='#')
+      r = make_result(r.remaining,r.matched,new Rule(name,r.ast));
 
     rule_stack.pop();
 
