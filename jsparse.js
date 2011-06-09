@@ -715,10 +715,15 @@ function then(p,f) {
 // becomes
 //    leftrec(base,function(left){ return choice(sequence(left,rest1),
 //                                               sequence(left,rest2)); })
+// (we're unfolding the grammar rule, dynamically, to the extent it parses,
+//  making the result of the previous iteration available via a 'const_p')
 function leftrec(base,rec) {
   function leftrec_aux(i,base,rec) {
     return rule("leftrec("+i+")",then(base,function(ast){
-                                  var base = const_p(ast);
+                                  // log_array("leftrec: "+ast);
+                                  // NOTE: avoid const_p's toString here (it would convert
+                                  //       increasingly complex asts to strings, at parse time)
+                                  var base = const_p(ast,"leftrec("+i+")");
                                   return choice(leftrec_aux(i+1,rec(base),rec),base);
                                  }));
   }
@@ -970,7 +975,7 @@ function const_p(c) {
   var parser = function(state) {
                   return make_result(state, "", c);
                 };
-  parser.toString = function() { return "const_p("+c+")"; }
+  parser.toString = function() { return "const_p("+(label ? label : c)+")"; }
   return parser;
 }
 
