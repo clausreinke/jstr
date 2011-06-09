@@ -15,6 +15,7 @@ function load(file) {
 }
 
 var file = "test_inputs/test_input.js";
+// var file = "test_inputs/mini.js";  // use small source excerpts for tracing
 var opts = "p";
 
 </script>
@@ -36,6 +37,43 @@ var opts = "p";
 </head>
 
 <body>
+<pre>
+Nothing to see here. Please open your Javascript console.
+Usage info, from <a href="readme.txt">readme.txt</a>:
 
+- in JS console, evaluate
+
+    test("es5.js","p",pc,grammar)
+
+  This should successfully parse one of jstr's own JS files.
+
+- the command format is
+
+    test(&lt;file&gt;, &lt;options&gt;, &lt;parser combinators&gt;, &lt;grammar&gt;)
+
+  where &lt;file&gt; is fetched via XHR, &lt;parser combinators&gt; and &lt;grammar&gt; are
+  loaded from jstr by test.html, and &lt;options&gt; currently include:
+
+  p  parse file
+  m  show matched/processed source
+  r  show unmatched/remaining source
+  a  show AST
+  u  unparse AST back to source
+  l  show grammar
+  t- show grammar-rule-level trace information during parse
+  t  show parser-combinator-level trace information during parse
+  s  add rule stack information
+
+  Both trace and stack information can be filtered by regular expressions
+  (see test.js for usage examples), but tracing really needs to be wrapped
+  in a good pager with search (something like less on the commandline; note
+  that you can search for rule entries '&gt;rule' and rule exits '&lt;rule'). Even
+  then: the smaller the input file, the more helpful the trace output.
+
+  Rule stack info is used in two contexts: parse error messages and debugger
+  sessions (for the latter, have the debugger monitor the variable 'rule_stack').
+
+
+</pre>
 </body>
 </html>
