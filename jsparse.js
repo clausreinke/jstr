@@ -158,7 +158,7 @@ ParseState.prototype.getCached = function(pid) {
         var cached = p[this.index];
     else
         var cached = false;
-    if (debug&&cached) log("getCached ("+pid+"/"+this.index+") "+cached.matched);
+    if (debug&&cached) log("getCached ("+pid+"/"+this.index+") "+cached.matched+"\n:"+cached.ast);
     return cached;
 };
 
@@ -170,7 +170,7 @@ ParseState.prototype.putCached = function(pid, cached) {
     if(!p)
       p = this.cache[pid] = { };
     p[this.index] = cached;
-    if (debug) log("putCached ("+pid+"/"+this.index+") "+(cached?cached.matched:"false"));
+    if (debug) log("putCached ("+pid+"/"+this.index+") "+(cached?cached.matched+"\n:"+cached.ast:"false"));
 };
 
 function ps(str) {
@@ -1107,7 +1107,8 @@ function rule(name,p) {
       nesting=nesting.substring(1);
 
       log(nesting+'<'+name+"("+state.line+"/"+state.index+")"
-          +(r ? " = "+r.matched
+          +(r ? " = "+r.matched+"\n"+nesting
+                +":"+r.ast
               : "[failed]"));
 
       if (r && r.matched && r.matched.substring(0,30)!==input.substring(0,r.matched.length))
