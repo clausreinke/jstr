@@ -538,20 +538,28 @@ function ast_add(ast,sub) {
 //       - what about whitespace/comments?
 //       - add original ast stream, for unparsing?
 //       - watch out: keep ES and general PC aspects separate
-function Node(type) { this.type = type; }
+function Node(init) {
+  if (typeof init==="string")
+    this.type = init;
+  else {
+    for(var i in init)
+      if (init.hasOwnProperty(i)) this[i]=init[i];
+  }
+}
 Node.prototype.toString = function() {
   var props = [];
   for (var p in this)
     if (this.hasOwnProperty(p))
       props.push(p+":"+this[p]);
   return "Node{"+props.join(",")+"}";
+  // return "Node{"+this.type+"}";
 }
 
 // TODO: current wrap/as toString is good for reproducing rules,
 //        but confusing for error messages (where users don't care
 //        about AST construction)
 
-// AST building, make a Node of type from parser 'p's Array ast result
+// AST building, make a Node of 'type' from parser 'p's Array ast result;
 // named ast elements become properties of the resulting Node
 function wrap(type,p) {
   var parser = action(p, function(ast) {
@@ -734,10 +742,12 @@ function leftrec(base,rec) {
 // It takes any number of parsers as arguments and returns a parser that will try
 // each of the given parsers in order. The first one that succeeds results in a
 // successfull parse. It fails if all parsers fail.
+// 'choice' ignores null arguments, which is useful for conditional grammar rules.
 function choice() {
     var parsers = [];
-    for(var i = 0; i < arguments.length; ++i)
-        parsers.push(toParser(arguments[i]));
+    for(var i = 0; i < arguments.length; ++i) {
+        if (arguments[i]) parsers.push(toParser(arguments[i]));
+    }
     var pid = parser_id++;
     var parser = rule("pc.choice("+parsers+")",function(state) {
         var savedState = state;
@@ -1188,6 +1198,7 @@ return {
   not : not,
   binops : binops,
   binops_left_assoc : binops_left_assoc,
+  Named : Named,
   Node : Node,
   wrap : wrap,
   as : as,

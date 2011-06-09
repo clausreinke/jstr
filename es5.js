@@ -79,6 +79,7 @@ var and = pc.and;
 var epsilon_p = pc.epsilon_p;
 var const_p = pc.const_p;
 var binops_left_assoc = pc.binops_left_assoc;
+var Named = pc.Named;
 var Node = pc.Node;
 // var wrap = function(_,p) { return toParser(p); };
 // var as = function(_,p) { return p ? toParser(p) : epsilon_p; };
@@ -87,6 +88,15 @@ var as = pc.as;
 var rule = pc.rule;
 var log_tree = pc.log_tree;
 var log_array = pc.log_array;
+
+// Language settings
+var LANGUAGE = {tailnests:false // reduce parens/braces for syntactic tail nests
+                                // (function applications and definitions, especially
+                                //  in callback chains)
+               };
+
+// conditional grammar rule; use as a choice branch, with a LANGUAGE.x flag
+function language(flag,p) { return (flag ? p : null); }
 
 // Forward Declarations
 var SourceElement = 
@@ -481,6 +491,16 @@ var Statement =
 var FunctionDeclaration = 
     function(input) { return FunctionDeclaration(input); };
 
+// build a function body ast for the paren-free definitions
+function wrap_body(ast) {
+  return ["{",
+          new Named("body",
+                    [new Node({"type":"ReturnStatement",
+                               "argument":ast.slice(1),
+                               "ast":["return","(",ast.slice(1),")",";"]})]),
+          "}"];
+}
+
 var FunctionBody = 
     rule("FunctionBody",repeat0(SourceElement));
 var FormalParameterList = 
@@ -491,11 +511,12 @@ var FunctionExpression =
     wsequence("function", as("id",optional(Identifier)),
               "(", as("params",optional(FormalParameterList)), ")",
        choice(wsequence("{", as("body",FunctionBody), "}")
-              /* towards paren-free definitions ,
+              /* towards paren-free definitions */,
               // focus on main issue: expression-returning functions
               // TODO: how to insert 'return' _after_ whitespace/linebreaks
+              language(LANGUAGE.tailnests,
               action(wsequence("=>", AssignmentExpression),
-                     function(ast) {return ["{","return","(",ast.slice(1),")",";","}"];}) */ ))));
+                     wrap_body)) /**/ ))));
 
 var FunctionDeclaration = 
     rule("FunctionDeclaration",
@@ -503,11 +524,12 @@ var FunctionDeclaration =
     wsequence("function", as("id",Identifier),
              "(", as("params",optional(FormalParameterList)), ")",
       choice(wsequence("{", as("body",FunctionBody), "}")
-             /* towards paren-free definitions ,
+             /* towards paren-free definitions */,
              // focus on main issue: expression-returning functions
              // TODO: how to insert 'return' _after_ whitespace/linebreaks
+             language(LANGUAGE.tailnests,
              action(wsequence("=>", AssignmentExpression),
-                    function(ast) {return ["{","return","(",ast.slice(1),")",";","}"];}) */ ))));
+                    wrap_body)) /**/ ))));
 
 
 var PrimaryExpression = 
@@ -529,7 +551,7 @@ var Arguments =
     choice(wsequence("(", ")"),
       wsequence("(", ArgumentList, ")")
 
-      /* towards paren-free application ,
+      /* towards paren-free application */,
       // some params can be paren-free, right now
       // TODO: - (Expression) is taken for old-style ArgumentList
       //          (suggestion: once spreads, rest, and destructuring are available,
@@ -538,16 +560,18 @@ var Arguments =
       //       - [e] ArrayLiteral overlaps property access in MemberExpression/CallExpression
       //          (suggestion: replace obj[x] with obj.[x] for property access, freeing
       //                       obj [x] for function call with ArrayLiteral)
-      whitespace(WARN_SEMI(
+      language(LANGUAGE.tailnests,
+      whitespace(WARN_SEMI( // ASI no longer applies here => provide warning
       action(choice(sequence(not(wchoice("(","[")),PrimaryExpression),FunctionExpression),
              function(ast) {return ["(",ast,")"]; })
-      )),
+      ))),
 
       // right-associative application operator, for paren-free params
       // (the mnemonic "application-with-greater-right" is merely
       //  a placeholder for proper syntax; "@" is already taken)
+      language(LANGUAGE.tailnests,
       action(wsequence("@<", AssignmentExpression),
-             function(ast){return ["(",ast.slice(1),")"];}) */
+             function(ast){return ["("].concat(ast.slice(1)).concat([,")"]);})) /**/
 
       // NOTE: no left-associative infix application operator for now
       ));
