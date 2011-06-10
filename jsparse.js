@@ -555,9 +555,11 @@ Node.prototype.toString = function() {
   // return "Node{"+this.type+"}";
 }
 
-// TODO: current wrap/as toString is good for reproducing rules,
-//        but confusing for error messages (where users don't care
-//        about AST construction)
+// showing wrap/as in toString is good for reproducing rules,
+// but confusing for error messages (where users don't care
+// about AST construction)
+var toString_AST = false;
+function set_toString_AST(flag) { toString_AST = flag; }
 
 // AST building, make a Node of 'type' from parser 'p's Array ast result;
 // named ast elements become properties of the resulting Node
@@ -582,7 +584,9 @@ function wrap(type,p) {
                        // TODO: investigate storage efficiency
        return node;
      } );
-  wrapparser.toString = function() { return 'wrap("'+type+'",'+p+')'; }
+  wrapparser.toString = function() { return (toString_AST
+                                            ? 'wrap("'+type+'",'+p+')'
+                                            : p.toString()); }
   return wrapparser;
 }
 
@@ -596,7 +600,9 @@ Named.prototype.toString = function(){ return "Named("+this.name+","+this.ast+")
 function as(name,p) {
   var p = typeof p==="undefined" ? epsilon_p : toParser(p);
   var asparser = action(p, function(ast){ return new Named(name,ast||null); } );
-  asparser.toString = function() { return 'as("'+name+'",'+p+')'; };
+  asparser.toString = function() { return (toString_AST
+                                          ? 'as("'+name+'",'+p+')'
+                                          : p.toString()); };
   return asparser;
 }
 
@@ -1204,6 +1210,7 @@ return {
   as : as,
   rule : rule,
   log_rules : log_rules,
+  set_toString_AST : set_toString_AST,
   set_trace : set_trace,
   set_stack_pattern : set_stack_pattern,
   set_debug : set_debug,
