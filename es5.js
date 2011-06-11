@@ -114,11 +114,12 @@ var LeftHandSideExpression =
 // (remembering NLs avoids making whitespace calls explicit,
 //  but explicit whitespace/NL handling would be better,
 //  to avoid grammar-specific additions to pc lib?)
-var NLTH = rule("NLTH",whitespace(function(input) { // fail if NL
-                        if (input.NL)
-                          return nothing_p(input);
-                        else
-                          return const_p("")(input); }));
+// TODO: now that we have more whitespace control, can we drop input.NL?
+var NLTH = rule("NLTH",and(whitespace(function(input) { // fail if NL
+                            if (input.NL)
+                              return nothing_p(input);
+                            else
+                              return const_p("")(input); })));
 var SEMI = rule("SEMI",choice(wtoken(";"), // missing eof, anything else?
                               not(NLTH),
                               and(wtoken("}"))));
