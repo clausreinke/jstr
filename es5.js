@@ -67,7 +67,7 @@ var wsequence = pc.wsequence;
 var then = pc.then;
 var choice = pc.choice;
 var wchoice = pc.wchoice;
-var leftrec = pc.leftrec;
+var rule_leftrec = pc.rule_leftrec;
 var butnot = pc.butnot;
 var repeat0 = pc.repeat0;
 var repeat1 = pc.repeat1;
@@ -578,18 +578,17 @@ var Arguments =
 
 var MemberExpression = function(input) { return MemberExpression(input); };
 var MemberExpression =
-    rule("MemberExpression",
-    leftrec(choice(wrap("NewExpression",
-                     wsequence("new", as("constructor",MemberExpression),
-                                      as("arguments",Arguments))),
-                   PrimaryExpression,
-                   FunctionExpression),function(left) {
+    rule_leftrec("MemberExpression",
+      choice(wrap("NewExpression",
+               wsequence("new", as("constructor",MemberExpression), as("arguments",Arguments))),
+             PrimaryExpression,
+             FunctionExpression),function(left) {
       return choice(wrap("MemberExpression",
                       wsequence(as("object",left),"[", as("property",Expression), "]",
                                 as("computed",const_p(true)))),
                     wrap("MemberExpression",
                       wsequence(as("object",left),".", as("property",Identifier),
-                                as("computed",const_p(false))))); }) );
+                                as("computed",const_p(false))))); });
 
 var NewExpression = function(input) { return NewExpression(input); };
 var NewExpression = 
@@ -599,9 +598,8 @@ var NewExpression =
              wsequence("new", as("constructor",NewExpression),as("arguments")))));
 
 var CallExpression = 
-    rule("CallExpression",
-    leftrec(wrap("CallExpression",
-              sequence(as("callee",MemberExpression),as("arguments",Arguments))),
+    rule_leftrec("CallExpression",
+      wrap("CallExpression", sequence(as("callee",MemberExpression),as("arguments",Arguments))),
       function(left) {
         return choice(wrap("CallExpression",
                         sequence(as("callee",left),as("arguments",Arguments))),
@@ -610,7 +608,7 @@ var CallExpression =
                                   as("computed",const_p(true)))),
                       wrap("MemberExpression",
                         wsequence(as("object",left),".",as("property",Identifier),
-                                  as("computed",const_p(false))))); }) );
+                                  as("computed",const_p(false))))); });
 
 var LeftHandSideExpression =
     rule("LeftHandSideExpression",choice(CallExpression, NewExpression));

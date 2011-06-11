@@ -744,6 +744,23 @@ function leftrec(base,rec) {
   return leftrec_aux(0,base,rec);
 }
 
+// Named version of 'leftrec'.
+// This is usually the one you want, and gives more useful trace and parse error messages.
+// NOTE: parse error messages will not include matched input for the recursive part, as
+//       const_p doesn't consume input - anything we can do about that?
+function rule_leftrec(name,base,rec) {
+  function leftrec_aux(i,base,rec) {
+    return rule(name+"("+i+")",then(base,function(ast){
+                                  // log_array(name+"("+i+"): "+ast);
+                                  // NOTE: avoid const_p's toString here (it would convert
+                                  //       increasingly complex asts to strings, at parse time)
+                                  var base = const_p(ast,name+"("+i+")");
+                                  return choice(leftrec_aux(i+1,rec(base),rec),base);
+                                 }));
+  }
+  return leftrec_aux(0,base,rec);
+}
+
 // 'choice' is a parser combinator that provides a choice between other parsers.
 // It takes any number of parsers as arguments and returns a parser that will try
 // each of the given parsers in order. The first one that succeeds results in a
@@ -1187,6 +1204,7 @@ return {
   then : then,
   choice : choice,
   wchoice : wchoice,
+  rule_leftrec : rule_leftrec,
   leftrec : leftrec,
   butnot : butnot,
   repeat0 : repeat0,
