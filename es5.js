@@ -655,7 +655,7 @@ var PostfixExpression =
     function(input) { return PostfixExpression(input); };
 
 var UpdateOperator =
-    wrap("UpdateOperator",as("token",choice("++","--")));
+    wrap("UpdateOperator",as("token",wchoice("++","--")));
 
 var PostfixExpression =
     rule("PostfixExpression",
@@ -667,7 +667,7 @@ var PostfixExpression =
            LeftHandSideExpression));
 
 var UnaryOperator =
-    wrap("UnaryOperator",as("token",choice("delete","void","typeof","+","-","~","!")));
+    wrap("UnaryOperator",as("token",wchoice("delete","void","typeof","+","-","~","!")));
 
 var UnaryExpression =
     rule("UnaryExpression",
