@@ -1,0 +1,271 @@
+
+== Proposal: lightweight function call/definition syntax
+
+  Paren-free function calls for PrimaryExpression and FunctionExpression
+  arguments, brace-/return-free function definitions for simple
+  expression-returning functions.
+
+== Proposal theme:
+
+  Flattening syntactic tailnests
+
+== Problem outline:
+
+  Tailnests are to syntactic nesting as tailcalls are to runtime stack.
+  In other words, the tail nest ends when its wrapper ends. This opens
+  the opportunity to reuse the wrapper's nesting level, keeping the
+  number of nestings constant.
+  
+  This particular proposal addresses the tailnests arising from callback
+  chains, with focus on expression-returning functions: 
+
+           operation(..,function(result) {
+    return operation(..,function(result) {
+    return operation(..,function(result) {
+    return ..
+     ; }); }); });
+
+  Such callback chains are typical for a wide range of functional
+  programming patterns, usually instances of continuation passing style
+  and monadic programming. When used in Javascript, the syntactic
+  nesting obscures the relevant details of these programming patterns.
+
+  The negative impact is worsened because the pattern 
+  
+    operation(args,function(result) { return ..; })
+  
+  is typically used to generalize variable binding (let-expressions) 
+  
+    let(result,operation(args),..);
+  
+  over the effect in question (non-deterministic state transformers in parsing,
+  asynchronous operations in network programming, ..). As such, this pattern is
+  central to defining control structures for many application domains (it is
+  the "let" hook for control structure proxies).
+
+== Proposal details:
+
+  Grammar changes:
+
+    FunctionExpression :
+      function Identifier_opt ( FormalParameterList_opt ) { FunctionBody }
++     function Identifier_opt ( FormalParameterList_opt ) => AssignmentExpression
+
+    FunctionDeclaration :
+      function Identifier ( FormalParameterList_opt ) { FunctionBody }
++     function Identifier ( FormalParameterList_opt ) => AssignmentExpression
+
+    Arguments :
+      ( )
+      ( ArgumentList )
++     [lookahead not in {'(','['}] PrimaryExpression
++     FunctionExpression
++     @< AssignmentExpression
+
+  Notes:
+
+    This proposal entails no semantic changes - all changes are
+    implemented by desugaring to existing syntax.
+
+    1 for simple expression-returning functions, braced FunctionBody can
+      be replaced by '=>'-prefixed AssignmentExpression (extending to
+      the right as far as possible, as usual)
+
+      'function f(..) => e' desugars to 'function f(..) { return e }'
+    
+    2 PrimaryExpression and FunctionExpression arguments need not be
+      parenthesized (with two exceptions, see point 2* below); this
+      enables mostly paren-free left-associative function applications,
+      without requiring an explicit infix application operator;
+
+      'f 1 "2" three function(result) => log(result)'
+
+      desugars to
+
+      'f (1) ("2") (three) (function(result) { return log(result) })'
+
+      Note: as can be seen from this example, this proposal extends the
+      range of valid Expressions, thus shrinks the range of ASI
+      applicability; one could either rewrite old code automatically, or
+      issue warnings where ASI no longer applies - our current
+      implementation does the latter;
+
+    3 to support paren-free right-associative function application as
+      well, an explicit right-associative infix application operator is
+      required; since symbols are a scarce resource in Javascript, this
+      proposal uses the mnemonic '@<' (application with bigger right, also
+      suggestive of feeding input into a function pipeline) as placeholder 
+      until a suitable symbol can be found;
+
+      'f @< g @< h @< x'
+
+      desugars to 
+
+      'f (g (h (x)))'
+
+  Additional notes:
+
+    2* the current proposal has two exceptions to paren-free
+      PrimaryExpression arguments, forced by backwards compatibility:
+      
+        1 parenthesized Expression overlaps with old-style Arguments
+        2 ArrayLiteral overlaps with computed property access
+
+      These issues could be resolved in ES/next/next, as follows (note
+      that the fix for 1 depends on the fix for 2):
+
+        2 use 'object.[property]' for computed property access; this
+          matches 'object.property' for literal property access and
+          frees 'f [..]' for ArrayLiteral function arguments;
+
+        1 use 'f [..]' instead of 'f (..)' when passing variable-length
+          function arguments, freeing 'f (..)' for parenthesized
+          Expression arguments
+
+      On the plus side:
+
+      - these fixes would make the language more uniform (computed
+        property access has little to do with ArrayLiteral, so shouldn't
+        use the same syntax; given the ArrayLiteral syntax for
+        variable-length objects, Arguments should not introduce a second
+        syntax for the same concept).
+
+      - rewriting existing code would be entirely automatic (could be
+        scripted).
+
+      - with these two fixes, paren-free function arguments could be
+        realized for all PrimaryExpression, without exceptions, freeing
+        Javascript's functional programming core from C-like syntax.
+
+      On the minus side:
+
+      - Javascript coders are not used to a uniform language and might
+        object to such changes, because: while supporting functional 
+        programming, the changes would make the syntax less C-like;
+
+      At present, this proposal does not rely these two additional
+      grammar fixes, as some of the benefits can be had without them.
+
+      However, these fixes should be scheduled for ES/next/next, leaving
+      time to prepare the ground for the transition (programmers using
+      paren-free arguments and running into the limitations will be more
+      open to taking the next step). It would help to permit and
+      encourage use of the new syntax for computed property access
+      ('object.[property]') now, and if there is a strict mode for
+      ES/next, deprecation warnings should be issued for uses of
+      old-style syntax ('object [property]').
+
+Illustrative examples:
+
+  The callback chain example from the introduction can now be written as
+
+    operation(..,function(result) =>
+    operation(..,function(result) =>
+    operation(..,function(result) =>
+    ..
+    )));
+
+  or, if the operations are curried in their callback parameter, as
+
+    (operation(..) function(result) =>
+     operation(..) function(result) =>
+     operation(..) function(result) =>
+     ..
+    );
+
+  While this proposal includes no currying-specific sugar, curried
+  definitions also become shorter:
+
+    function(a) { return function(b) { return a+b; }}
+
+  can be written as
+
+    function(a) => function(b) => a+b;
+
+  (see also tailnests-examples.js)
+
+Related issues:
+
+  - shortening "function": this proposal would profit from and is compatible
+    with a shorter function prefix, but deliberately focusses on the other
+    syntactic problems hampering function use, to counter the common
+    misconception that better function syntax is about saving characters;
+
+  - more efficient functions: this proposal is defined by desugaring to existing
+    functions for simplicity only; it does not address the issue that pervasive
+    use of functional abstraction requires efficient implementation of function
+    calls; it would profit from any changes to functions that enable
+    implementations to optimize functions more aggressively (eg, while it is
+    useful to be able to create *modified copies* of functions, to attach a new
+    toString or to close over internal references, treating all function
+    modifications as *inplace updates* seems likely to interfere with
+    optimization and program analysis);
+
+    being able to use "#(..)=>.." instead of "function(..)=>..", with the
+    understanding that such functions would be immutable, would be compatible
+    with this proposal; in this case, inplace mutation should probably be
+    replaced by operations for creating modified copies of functions;
+
+  - "arguments": this feature should be deprecated in ES/next and removed in
+    ES/next/next (replaced by spreads, destructuring, rest parameters);
+
+  - "return/break/continue": this proposal focuses on expression functions;
+    while these are not clearly separated from procedures in Javascript, the
+    lack of a block body sidesteps the issue of non-local returns;
+
+    the more interesting issue is that of blocks as expressions, supporting the
+    definition of new control structures, such as array loops; on this topic,
+    the proposal aims for a more compositional picture: building block
+    expressions from their component parts, such as statements and variable
+    binding, will ultimately allow to cover the same usage scenarios, more
+    flexibly; nevertheless, blocks as expressions could be supported by a
+    separate, compatible proposal;
+
+  - "this": the present proposal takes no stance on the implicit-this issue;
+
+Related proposals:
+
+  arrow syntax
+    Arrow syntax does not have paren-free calls but the proposals
+    overlap on shorter function definitions. The current proposal is
+    simpler/less ambitious in this area:
+
+    - it does not try to resolve the block/object overlap (though I
+      agree this would be useful)
+
+    - it only handles simple expression-returning functions, not complex
+      block-executing procedures (to recover the latter, I would prefer
+      to have blocks as expressions, preferably built from statements and
+      variable binding)
+
+    - it does keep the prefix marker 'function' (a shorter symbolic marker
+      would be better, and using '#' prefix for immutable functions would 
+      be great, but dropping the prefix entirely would lead to grammar issues)
+
+  block lambdas
+    The proposals only overlap on paren-free calls, but block lambdas have been
+    positioned as mutually exclusive with arrow syntax. This proposal sharpens
+    the difference (between parameterized expressions and parameterized blocks).
+
+    The ability to have blocks as expressions would combine well with the
+    present proposal. However, I believe that monolithic blocks-as-expressions,
+    while supporting syntactic similarities to built-in control structures, are
+    an unnecessary and ultimately limiting shortcut (see also F# computation
+    expressions or Haskell do-notation);
+
+Precendents:
+
+  Most functional languages keep function definition and call syntax
+  lightweight, because that is the core functionality used by all code.
+
+  Brace-/return-free function definitions which extend to the right as
+  far as possible are standard since Church's lambda calculus. Current
+  examples include the ML family, Clean and Haskell.
+
+  Examples for paren-free left-associative function applications include
+  the ML family, Clean and Haskell. Haskell's standard libraries also
+  provide a right-associative low-precedence infix application operator
+  ($) for function pipelines without nesting. CoffeeScript seems to have chosen
+  right-associative infix application as the default, but that interferes with
+  currying.
+

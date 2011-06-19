@@ -1,0 +1,58 @@
+<html>
+<head>
+<title>Paren-free function definitions and applications</title>
+
+<script>
+
+var results, source;
+
+// function log(msg) { console.log(msg); }
+function log(msg) {
+  var lines = msg.split("\n");
+  for (var i=0; i<lines.length; i++) {
+    results.value += lines[i]+"\n";
+  }
+}
+
+
+function load(file) {
+  var xhr = ((typeof ActiveXObject!=="undefined") && new ActiveXObject("Microsoft.XMLHTTP"))
+          || new XMLHttpRequest();
+  xhr.open('GET',file,false);
+  xhr.send(null);
+  return xhr.responseText;
+}
+
+var file = "tailnests-examples.js";
+var opts = "pu";
+
+</script>
+
+<script language="javascript" src="../jsparse.js"></script>
+<script language="javascript" src="../es5.js"></script>
+<script language="javascript" src="../test.js"></script>
+
+<style type="text/css">
+form    { width: 100%; height: 100%}
+#source { width: 100%; height: 40% }
+#output { width: 100%; height: 50% }
+</style>
+
+</head>
+
+<body onload="results = document.getElementById('output');
+              source  = document.getElementById('source');
+              document.getElementById('source').value = load(file);">
+<form action="javascript:undefined">
+
+<textarea id='source'></textarea>
+
+<input type='submit' value='desugar'
+       onclick='results.value = "";
+                test(file,opts,pc,grammar,{language:{tailnests:true},src:source.value})'>
+
+<textarea id='output' value=' '></textarea>
+
+</form>
+</body>
+</html>
