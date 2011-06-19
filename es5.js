@@ -29,6 +29,9 @@
 // TODO: - check for missing details
 //       - ASI (in progress)
 //       - AST (in progress)
+//         we still have some non-AST parse tree elements left over in
+//         the AST (such as list separators) and some AST-requirements
+//         missing (such as null elements for array elisions)
 //       - NoIn variants
 //       - get/set
 //       - strict mode
@@ -41,11 +44,12 @@
   syn match AST /as("[^"]*"/hs=s+3
   hi link AST Special
   syn match RULE /rule("[^"]*"/hs=s+5
-  hi link AST Type
+  syn match RULE /rule_leftrec("[^"]*"/hs=s+13
+  hi link RULE Type
 
  */
 
-var grammar = function(pc){
+var grammar = function(LANGUAGE,pc){
 
 // import parser combinators
 var toParser = pc.toParser;
@@ -88,12 +92,6 @@ var as = pc.as;
 var rule = pc.rule;
 var log_tree = pc.log_tree;
 var log_array = pc.log_array;
-
-// Language settings
-var LANGUAGE = {tailnests:false // reduce parens/braces for syntactic tail nests
-                                // (function applications and definitions, especially
-                                //  in callback chains)
-               };
 
 // conditional grammar rule; use as a choice branch, with a LANGUAGE.x flag
 function language(flag,p) { return (flag ? p : null); }

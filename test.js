@@ -9,10 +9,18 @@ var test = function(file,opts,pc,grammar,testcase){ // TODO: restructure args
       return msg.replace(/function.input. { return ([^(]*)(\(input\))?; }/g,"$1");
     }
 
-    log('\nprocessing '+file);
+    // default language settings
+    var language = testcase && testcase.language
+                   ? testcase.language
+                   : {tailnests:false // reduce parens/braces for syntactic tail nests
+                                      // (function applications and definitions, especially
+                                      //  in callback chains)
+                     };
+
+    log('\nprocessing '+(testcase && testcase.src ? 'source' : file));
     pc.clear_cache();
     var src = testcase && testcase.src ? testcase.src : load(file);
-    var rule = testcase && testcase.rule ? testcase.rule : grammar(pc).Program;
+    var rule = testcase && testcase.rule ? testcase.rule : grammar(language,pc).Program;
 
     var startTime = (new Date()).getTime();
     if (opts.match(/l/)) pc.log_rules(log,rule);
