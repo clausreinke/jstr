@@ -50,6 +50,13 @@ usage can be found below.
   test.wsf
     use test.js with WSH/CScript
 
+  es-discuss/
+    tailnests.html
+    tailnests-examples.js
+    tailnests.txt
+      a proposal for paren-free function definitions and calls
+
+
 == Usage
 
 There is no proper tool interface yet. You can either use the test interfaces
