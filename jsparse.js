@@ -37,9 +37,12 @@ function foldl(f, initial, seq) {
 // log ast in nested tree form
 function log_tree(pre,ast) {
   if (ast instanceof Array)
-    for (var i=0; i<ast.length; i++)
-      log_tree(pre+(i%10).toString(),ast[i]);
-      // log_tree(pre+'-',ast[i]); // less interesting/confusing output variation
+    if (ast.length>0)
+      for (var i=0; i<ast.length; i++)
+        log_tree(pre+(i%10).toString(),ast[i]);
+        // log_tree(pre+'-',ast[i]); // less interesting/confusing output variation
+    else
+        log(pre+'|[]|');
   else if (ast instanceof Rule)
     log_tree(pre/* +"{"+ast.name+"}" */,ast.ast); // names too long, obscure tree
   else if (ast instanceof Named)
@@ -117,6 +120,10 @@ ParseState.prototype.incLine = function(s) {
   } else
     this.NL = false;
 };
+
+// TODO: column and indent tracking
+//        (would like to rule out tabs, but can't..;
+//         instead, use a run-length encoding of indent? :-()
 
 ParseState.prototype.from = function(index,s) {
     var r = new ParseState(this.input, this.index + index, this.line);
@@ -748,6 +755,7 @@ function leftrec(base,rec) {
 // This is usually the one you want, and gives more useful trace and parse error messages.
 // NOTE: parse error messages will not include matched input for the recursive part, as
 //       const_p doesn't consume input - anything we can do about that?
+// TODO: sort out toString representation
 function rule_leftrec(name,base,rec) {
   function leftrec_aux(i,base,rec) {
     return rule(name+"("+i+")",then(base,function(ast){
@@ -1094,6 +1102,7 @@ function binops(ops,e) {
 
 // binary operators '[op,..]' with arguments 'e', associating to the left:
 // ((e op e) op e) ..
+// TODO: bring the nested binops into a single precedence-driven loop
 function binops_left_assoc(ops,e,f) {
   var opsParser = whitespace( ops.length===1 ? token(ops[0]) : choice.apply(null,ops) );
   return action(sequence(whitespace(e), repeat0(sequence(opsParser, whitespace(e)))),
