@@ -929,7 +929,7 @@ function repeat1(p) {
 
 // A parser combinator that takes one parser. It returns a parser that
 // matches zero or one matches of the original parser.
-function optional(p) {
+function optional(p,default_value) {
     var p = toParser(p);
     var pid = parser_id++;
     var optionalparser = rule("pc.optional("+p+")",function(state) {
@@ -938,7 +938,7 @@ function optional(p) {
         if(cached)
             return cached;
         var r = p(state.from(0));
-        cached = r ? r : make_result(state, "", undefined);
+        cached = r ? r : make_result(state, "", default_value);
         savedState.putCached(pid, cached);
         return cached;
     });
