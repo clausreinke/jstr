@@ -702,8 +702,13 @@ function wsequence() {
 //        that gets in the way for its current main use case leftrec)
 function then(p,f) {
   // TODO: caching
+  var p = toParser(p);
+  var pid = parser_id++;
   var thenparser = function(input) {
-       var cached  = false;
+       var savedState = input;
+       var cached = savedState.getCached(pid);
+       if(cached)
+           return cached;
        var ast     = [];
        var matched = "";
 
@@ -725,6 +730,7 @@ function then(p,f) {
            cached = make_result(fr.remaining, matched, ast);
          }
        }
+       savedState.putCached(pid, cached);
        return cached;
      };
   thenparser.toString = function(){ return "then("+p+","+f+")"; };
