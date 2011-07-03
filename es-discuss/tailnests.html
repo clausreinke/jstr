@@ -4,7 +4,7 @@
 
 <script>
 
-var results, source;
+var results, source, output;
 
 // function log(msg) { console.log(msg); }
 function log(msg) {
@@ -14,8 +14,10 @@ function log(msg) {
   }
 }
 
+// function log_obj(obj) { console.log(obj); }
+function log_obj(obj) { results.value += obj+'\n'; }
 
-function load(file) {
+function loadfile(file) {
   var xhr = ((typeof ActiveXObject!=="undefined") && new ActiveXObject("Microsoft.XMLHTTP"))
           || new XMLHttpRequest();
   xhr.open('GET',file,false);
@@ -23,7 +25,6 @@ function load(file) {
   return xhr.responseText;
 }
 
-var file = "tailnests-examples.js";
 var opts = "pu";
 
 </script>
@@ -33,26 +34,46 @@ var opts = "pu";
 <script language="javascript" src="../test.js"></script>
 
 <style type="text/css">
-form    { width: 100%; height: 100%}
-#source { width: 100%; height: 40% }
-#output { width: 100%; height: 50% }
+form    { width: 100%; height: 100% }
+#source { width: 50%; height: 70%; overflow: auto; float: left }
+#output { width: 50%; height: 70%; overflow: auto; float: right }
+#results { width: 100%; height: 30%; overflow: auto; clear: both }
 </style>
 
 </head>
 
-<body onload="results = document.getElementById('output');
-              source  = document.getElementById('source');
-              document.getElementById('source').value = load(file);">
+<body onload="output   = document.getElementById('output');
+              source   = document.getElementById('source');
+              filename = document.getElementById('filename');
+              cmd      = document.getElementById('cmd');
+              results  = document.getElementById('results');
+              source.value = loadfile(filename.value || 'then.js');">
+
 <form action="javascript:undefined">
 
-<textarea id='source'></textarea>
+<input id='filename' type='file'
+       onchange='source.value = loadfile(filename.value);
+                 output.value = ""'>
 
 <input type='submit' value='desugar'
-       onclick='results.value = "";
-                test(file,opts,pc,grammar,{language:{tailnests:true},src:source.value})'>
+       onclick='output.value = test(filename.value,opts,pc,grammar,
+                                    {language:{tailnests:true}
+                                    ,src:source.value
+                                    ,log:log}).unparsed'>
 
+<input id='cmd' type='text' value='test()'>
+<input type='submit' value='evaluate'
+       onclick='eval(output.value+"\n"+cmd.value)'>
+
+
+<div>
+<textarea id='source'></textarea>
 <textarea id='output' value=' '></textarea>
+</div>
+
+<textarea id='results' value=' '></textarea>
 
 </form>
+
 </body>
 </html>
