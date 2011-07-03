@@ -482,9 +482,10 @@ var DebuggerStatement =
 
 var ExpressionStatement = 
     rule("ExpressionStatement",
-    wrap("ExpressionStatement",whitespace(
-    choice(sequence(choice("{", "function"), nothing_p), // TODO: rewrite
-           sequence(as("expression",Expression),SEMI)))));
+    wrap("ExpressionStatement",
+    whitespace(
+    sequence(not(choice("{", "function")),as("expression",Expression),SEMI))));
+
 var Statement = 
     rule("Statement",
     choice(Block,
