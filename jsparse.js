@@ -657,6 +657,10 @@ function sequence() {
         }
         else {
             if (i>0) { // TODO: colours instead of caps?
+              var remaining = state.substring(0,200)
+                                   .split(/\r\n|\r|\n/)
+                                   .slice(0,2)
+                                   .join('\n');
               var msg = ['partial parse (line '+state.line
                                       +'/ index '+state.index
                                       +'/ depth '+rule_stack.length+')'
@@ -664,7 +668,7 @@ function sequence() {
                         ,'MATCHED '+matched
                         ,'CONTEXT '+parsers
                         ,'PARSING '+parser
-                        ,'REMAINING '+state.substring(0,30)].join("\n");
+                        ,'REMAINING '+remaining].join("\n");
               if (trace) {
                 log(msg);
               } 
