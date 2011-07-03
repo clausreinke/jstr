@@ -70,7 +70,7 @@ function log_array(ast) {
 }
 
 // log ast by unparsing
-function log_ast_as_string(whitespace,ast) {
+function ast_as_string(whitespace,ast) {
   var result = [], done = [];
   function aux(ast) {
     if (ast) {
@@ -94,7 +94,7 @@ function log_ast_as_string(whitespace,ast) {
     }
   }
   aux(ast);
-  log(result.join(""));
+  return result.join("");
 }
 
 var memoize = true;
@@ -1205,7 +1205,7 @@ return {
   ps : ps,
   log_tree : log_tree,
   log_array : log_array,
-  log_ast_as_string : log_ast_as_string,
+  ast_as_string : ast_as_string,
   toParser : toParser,
   token : token,
   ch : ch,

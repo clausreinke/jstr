@@ -1,6 +1,16 @@
+
+// test setup
+//
+// file    : name of source file to parse
+// opts    : parse and debug options
+// pc      : parser combinator library
+// grammar : grammar to parse, parameterized by language settings and pc
+// testcase: optional source file and language settings
 var test = function(file,opts,pc,grammar,testcase){ // TODO: restructure args
 
-    function log_lines(msg) {
+    var log = testcase && testcase.log || function (msg) { console.log(msg); };
+
+    function log_lines(log,msg) {
       var lines = msg ? msg.split(/\r\n\|\r\|\n/) : [];
       for (var l=0; l<lines.length; l++) log(lines[l]);
     }
@@ -32,6 +42,7 @@ var test = function(file,opts,pc,grammar,testcase){ // TODO: restructure args
     if (opts.match(/p/)) {
       var parser = pc.sequence(rule,pc.whitespace(pc.end_p));
       var input  = pc.ps(src);
+      var output = {};
       try {
         var parsed = parser(input);
       } catch(e) {
@@ -63,16 +74,17 @@ var test = function(file,opts,pc,grammar,testcase){ // TODO: restructure args
       if (parsed) {
         if (opts.match(/m/)) {
           log('------------------------ matched source');
-          log_lines(parsed.matched);
+          log_lines(log,parsed.matched);
         }
         if (opts.match(/r/)) {
           log('------------------------ remaining source');
-          log_lines(parsed.remaining.toString());
+          log_lines(log,parsed.remaining.toString());
         }
         if (opts.match(/u/)) {
           log('------------------------ unparse from ast');
           try {
-            pc.log_ast_as_string(input.whitespace,parsed.ast);
+            output.unparsed = pc.ast_as_string(input.whitespace,parsed.ast);
+            log(output.unparsed);
           } catch(e) { log('EXCEPTION '+e); }
         }
         if (opts.match(/a/)) {
@@ -92,5 +104,5 @@ var test = function(file,opts,pc,grammar,testcase){ // TODO: restructure args
       log((parsed ? 'success' : 'fail')
           +' in '+((new Date()).getTime()-startTime));
     }
-
+    return output;
   };
