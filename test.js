@@ -89,7 +89,7 @@ var test = function(file,opts,pc,grammar,testcase){ // TODO: restructure args
         }
         if (opts.match(/a/)) {
           log('------------------------ ast');
-          pc.log_tree('',parsed.ast);
+          pc.log_tree(log,'',parsed.ast);
         }
         log('------------------------');
         parsed.remaining && log('pos.line: '+parsed.remaining.line);

@@ -35,22 +35,22 @@ function foldl(f, initial, seq) {
 }
 
 // log ast in nested tree form
-function log_tree(pre,ast) {
+function log_tree(log,pre,ast) {
   if (ast instanceof Array)
     if (ast.length>0)
       for (var i=0; i<ast.length; i++)
-        log_tree(pre+(i%10).toString(),ast[i]);
-        // log_tree(pre+'-',ast[i]); // less interesting/confusing output variation
+        log_tree(log,pre+(i%10).toString(),ast[i]);
+        // log_tree(log,pre+'-',ast[i]); // less interesting/confusing output variation
     else
         log(pre+'|[]|');
   else if (ast instanceof Rule)
-    log_tree(pre/* +"{"+ast.name+"}" */,ast.ast); // names too long, obscure tree
+    log_tree(log,pre/* +"{"+ast.name+"}" */,ast.ast); // names too long, obscure tree
   else if (ast instanceof Named)
-    log_tree(pre/* +"."+ast.name */,ast.ast); // names too long, obscure tree
+    log_tree(log,pre/* +"."+ast.name */,ast.ast); // names too long, obscure tree
   else if (ast instanceof Node) {
     for (var n in ast)
       if (ast.hasOwnProperty(n) && n!=='ast')
-        log_tree(pre+"."+n+":",ast[n]); // names too long..
+        log_tree(log,pre+"."+n+":",ast[n]); // names too long..
   } else
     log(pre+'|'+ast+'|');
 }
