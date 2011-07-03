@@ -47,10 +47,6 @@
 
   Grammar changes:
 
-    FunctionExpression :
-      function Identifier_opt ( FormalParameterList_opt ) { FunctionBody }
-+     function Identifier_opt ( FormalParameterList_opt ) => AssignmentExpression
-
     FunctionDeclaration :
       function Identifier ( FormalParameterList_opt ) { FunctionBody }
 +     function Identifier ( FormalParameterList_opt ) => AssignmentExpression
@@ -60,16 +56,25 @@
       ( ArgumentList )
 +     [lookahead not in {'(','['}] PrimaryExpression
 +     FunctionExpression
-+     @< AssignmentExpression
+
++   ExpressionFunctionExpression :
++     function Identifier_opt ( FormalParameterList_opt ) => AssignmentExpression
+
++   RightAssociativeCallExpression :
++     LeftHandSideExpression @< AssignmentExpression
+
+    AssignmentExpression :
++     ExpressionFunctionExpression
++     RightAssociativeCallExpression
 
   Notes:
 
-    This proposal entails no semantic changes - all changes are
-    implemented by desugaring to existing syntax.
+    This proposal entails no semantic changes - all changes are implemented by
+    desugaring to existing syntax. The syntactic improvements could be carried
+    over to semantically simplified functions, though.
 
     1 for simple expression-returning functions, braced FunctionBody can
-      be replaced by '=>'-prefixed AssignmentExpression (extending to
-      the right as far as possible, as usual)
+      be replaced by '=>'-prefixed AssignmentExpression
 
       'function f(..) => e' desugars to 'function f(..) { return e }'
     
@@ -78,7 +83,7 @@
       enables mostly paren-free left-associative function applications,
       without requiring an explicit infix application operator;
 
-      'f 1 "2" three function(result) => log(result)'
+      'f 1 "2" three function(result) { return log(result) }'
 
       desugars to
 
@@ -102,6 +107,19 @@
       desugars to 
 
       'f (g (h (x)))'
+
+      In combination with paren-free expression function expressions, this
+      right-associative paren-free application operator achieves the proposal
+      aim of flattening syntactic tail nesting in callback chains:
+
+      'operation @< function(result) => operations'
+
+      desugars to
+
+      'operation (function(result) { return operations; })'
+
+      Nested callback chains in 'operations' do not increase the syntactic
+      nesting level (see illustrative examples below).
 
   Additional notes:
 
@@ -167,9 +185,9 @@ Illustrative examples:
 
   or, if the operations are curried in their callback parameter, as
 
-    (operation(..) function(result) =>
-     operation(..) function(result) =>
-     operation(..) function(result) =>
+    (operation(..) @< function(result) =>
+     operation(..) @< function(result) =>
+     operation(..) @< function(result) =>
      ..
     );
 
@@ -182,9 +200,13 @@ Illustrative examples:
 
     function(a) => function(b) => a+b;
 
-  (see also tailnests-examples.js)
+  (see also tailnests-examples.js, or then.js for working code)
 
 Related issues:
+
+  - it would be useful to extract the core components from the various function
+    related proposals: mutable or not, expression or statement body, implicit
+    'this'/'arguments' or not, blocks expressions, syntactic improvements;
 
   - shortening "function": this proposal would profit from and is compatible
     with a shorter function prefix, but deliberately focusses on the other
@@ -221,7 +243,8 @@ Related issues:
     flexibly; nevertheless, blocks as expressions could be supported by a
     separate, compatible proposal;
 
-  - "this": the present proposal takes no stance on the implicit-this issue;
+  - "this": the present proposal takes no stance on the implicit-this issue,
+    though for use in callback chains, neither 'this' nor 'arguments' are wanted;
 
 Related proposals:
 

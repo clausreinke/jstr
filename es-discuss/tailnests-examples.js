@@ -23,13 +23,6 @@ return operation3(a,b);
        });
        });
 
-// new callback chain: brace/return-free expression-returning function definitions,
-// with paren-free FunctionExpression arguments
-( operation1().then function(a) =>
-  operation2().then function(b) =>
-  operation3(a,b)
-);
-
 // with paren-free right-associative infix application
 ( operation1().then @< function(a) =>
   operation2().then @< function(b) =>

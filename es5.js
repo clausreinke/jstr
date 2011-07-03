@@ -526,26 +526,19 @@ var FunctionExpression =
     wrap("FunctionExpression",
     wsequence("function", as("id",optional(Identifier)),
               "(", as("params",optional(FormalParameterList)), ")",
-       choice(wsequence("{", as("body",FunctionBody), "}")
-              /* towards paren-free definitions */,
-              // focus on main issue: expression-returning functions
-              // TODO: how to insert 'return' _after_ whitespace/linebreaks
-              language(LANGUAGE.tailnests,
-              action(wsequence("=>", AssignmentExpression),
-                     wrap_body)) /**/ ))));
+              wsequence("{", as("body",FunctionBody), "}") )));
 
 var FunctionDeclaration = 
     rule("FunctionDeclaration",
     wrap("FunctionDeclaration",
     wsequence("function", as("id",Identifier),
              "(", as("params",optional(FormalParameterList)), ")",
-      choice(wsequence("{", as("body",FunctionBody), "}")
-             /* towards paren-free definitions */,
+      choice(wsequence("{", as("body",FunctionBody), "}"),
+             // towards paren-free definitions
              // focus on main issue: expression-returning functions
-             // TODO: how to insert 'return' _after_ whitespace/linebreaks
              language(LANGUAGE.tailnests,
              action(wsequence("=>", AssignmentExpression),
-                    wrap_body)) /**/ ))));
+                    wrap_body)) ))));
 
 
 var PrimaryExpression = 
@@ -578,18 +571,11 @@ var Arguments =
       //                       obj [x] for function call with ArrayLiteral)
       language(LANGUAGE.tailnests,
       whitespace(WARN_SEMI( // ASI no longer applies here => provide warning
-      action(choice(sequence(not(wchoice("(","[")),PrimaryExpression),FunctionExpression),
+      action(choice(sequence(not(wchoice("(","[")),PrimaryExpression),
+                    FunctionExpression),
              function(ast) {return ["(",ast,")"]; })
-      ))),
+      )))
 
-      // right-associative application operator, for paren-free params
-      // (the mnemonic "application-with-greater-right" is merely
-      //  a placeholder for proper syntax; "@" is already taken)
-      language(LANGUAGE.tailnests,
-      action(wsequence("@<", AssignmentExpression),
-             function(ast){return ["("].concat(ast.slice(1)).concat([,")"]);})) /**/
-
-      // NOTE: no left-associative infix application operator for now
       ));
 
 var MemberExpression = function(input) { return MemberExpression(input); };
@@ -751,12 +737,38 @@ var ConditionalExpression =
                       ":", as("alternate",AssignmentExpression))),
            LogicalORExpression));
 
+var ExpressionFunctionExpression =
+    // towards paren-free definitions
+    // focus on main issue: expression-returning functions;
+    // open to the right, so we view '=>' as a low priority infix op
+    language(LANGUAGE.tailnests,
+    rule("FunctionExpression",
+    wrap("FunctionExpression",
+    wsequence("function", as("id",optional(Identifier)),
+              "(", as("params",optional(FormalParameterList)), ")",
+              action(wsequence("=>", AssignmentExpression), wrap_body)) )));
+
+var RightAssociativeCallExpression =
+    // right-associative application operator, for paren-free params
+    // (the mnemonic "application-with-greater-right" is merely
+    //  a placeholder for proper syntax; "@" is already taken);
+    //  @< is low priority infix op
+    language(LANGUAGE.tailnests,
+    wrap("CallExpression",
+    action(wsequence(as("callee",LeftHandSideExpression),
+                     "@<",
+                     as("arguments",AssignmentExpression)),
+           function(ast){return [ast[0],"(",ast[2],")"];}) ));
+
+
 var AssignmentExpression = 
     rule("AssignmentExpression",
     choice(wrap("AssignmentExpression",
             sequence(whitespace(as("left",LeftHandSideExpression)),
                      as("operator",AssignmentOperator),
                      as("right",AssignmentExpression))),
+           ExpressionFunctionExpression,
+           RightAssociativeCallExpression,
            ConditionalExpression));
 
 var Expression = // TODO: don't wrap singleton list
