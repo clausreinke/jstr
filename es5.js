@@ -192,7 +192,7 @@ var HexDigit =
 var HexIntegerLiteral = 
     rule("HexIntegerLiteral",sequence(choice("0x", "0X"), repeat1(HexDigit)));
 var NumericLiteral = 
-    rule("NumericLiteral",choice(HexIntegerLiteral, DecimalLiteral));
+    rule("NumericLiteral",join_action(choice(HexIntegerLiteral, DecimalLiteral),""));
 
 var SingleEscapeCharacter = 
     rule("SingleEscapeCharacter",choice("'", "\"", "\\", "b", "f", "n", "r", "t", "v"));
@@ -268,15 +268,31 @@ var RegularExpressionLiteral =
     rule("RegularExpressionLiteral",
     sequence("/",join_action(RegularExpressionBody,""),"/",join_action(RegularExpressionFlags,"")));
 
-var Literal = 
+// premature evaluation here is wrecking havoc with unparsing, among others;
+// at least, delay evaluation until we've secured the raw ast
+var Literal =
     rule("Literal",
-    wrap("Literal",
-    as("value",
-      choice(action(NullLiteral,function(ast){return null;}),
-             action(BooleanLiteral,function(ast){return {"true":true,"false":false}[ast];}),
-             action(NumericLiteral,function(ast){return Number(ast);}),
-             action(StringLiteral,function(ast){return ast;}),
-             action(RegularExpressionLiteral,function(ast){return RegExp(ast[1],ast[3]);})))));
+    action(wrap("Literal", as("value", choice(NullLiteral,
+                                              BooleanLiteral,
+                                              NumericLiteral,
+                                              StringLiteral,
+                                              RegularExpressionLiteral))),
+           function(lit) {
+             switch (lit.value) {
+               case "null": lit.value = null; break;
+               case "true": lit.value = true; break;
+               case "false": lit.value = false; break;
+               default: if (lit.value instanceof Array)
+                          lit.value = RegExp(lit.value[1],lit.value[3]);
+                        else
+                           switch (lit.value[0]) {
+                             case '"':
+                             case "'": break; // StringLiteral
+                             default: lit.value = Number(lit.value);
+                           };
+             };
+             return lit;
+           }));
 
 var Keyword = 
     rule("Keyword",
