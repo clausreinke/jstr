@@ -584,10 +584,10 @@ var MemberExpression =
              FunctionExpression),function(left) {
       return choice(wrap("MemberExpression",
                       wsequence(as("object",left),"[", as("property",Expression), "]",
-                                as("computed",const_p(true)))),
+                                as("computed",const_p(true),true))),
                     wrap("MemberExpression",
                       wsequence(as("object",left),".", as("property",Identifier),
-                                as("computed",const_p(false))))); });
+                                as("computed",const_p(false),true)))); });
 
 var NewExpression = function(input) { return NewExpression(input); };
 var NewExpression = 
@@ -604,10 +604,10 @@ var CallExpression =
                         sequence(as("callee",left),as("arguments",Arguments))),
                       wrap("MemberExpression",
                         wsequence(as("object",left),"[",as("property",Expression),"]",
-                                  as("computed",const_p(true)))),
+                                  as("computed",const_p(true),true))),
                       wrap("MemberExpression",
                         wsequence(as("object",left),".",as("property",Identifier),
-                                  as("computed",const_p(false))))); });
+                                  as("computed",const_p(false),true)))); });
 
 var LeftHandSideExpression =
     rule("LeftHandSideExpression",choice(CallExpression, NewExpression));
@@ -662,7 +662,7 @@ var PostfixExpression =
             wsequence(as("argument",LeftHandSideExpression),
                       NLTH,
                       as("operator",UpdateOperator),
-                      as("prefix",const_p(false)))),
+                      as("prefix",const_p(false),true))),
            LeftHandSideExpression));
 
 var UnaryOperator =
@@ -673,7 +673,7 @@ var UnaryExpression =
     choice(PostfixExpression,
      wrap("UpdateExpression",wsequence(as("operator", UpdateOperator),
                                        as("argument",UnaryExpression),
-                                       as("prefix",const_p(true)))),
+                                       as("prefix",const_p(true),true))),
      wrap("UnaryExpression",wsequence(as("operator",UnaryOperator),
                                       as("argument",UnaryExpression)))
      ));

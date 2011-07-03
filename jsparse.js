@@ -85,9 +85,11 @@ function log_ast_as_string(whitespace,ast) {
         aux(ast.ast);
       else if (ast instanceof Node)
         aux(ast.ast); // bypass AST structure, for simple generic traversal
-      else if (ast instanceof Named)
-        aux(ast.ast); // bypass AST structure, for simple generic traversal
-      else
+      else if (ast instanceof Named) {
+        // bypass AST structure, for simple generic traversal
+        // don't attempt to unparse computed or null attributes
+        if (ast.ast && !ast.computed) aux(ast.ast);
+      } else
         result.push(ast);
     }
   }
@@ -598,15 +600,20 @@ function wrap(type,p) {
 }
 
 // named ast element
-function Named(name,ast) { this.name = name; this.ast = ast; }
-Named.prototype.toString = function(){ return "Named("+this.name+","+this.ast+")"; };
+function Named(name,ast,computed) {
+  this.name = name;
+  this.ast = ast;
+  this.computed = computed;
+}
+Named.prototype.toString =
+  function(){ return "Named("+this.name+","+this.ast+","+this.computed+")"; };
 
 // 'as(name,p)' parses as 'p', but produces a named ast result
 // 'as(name)' but produces a named null ast result
 // (named ast elements end up stored in Node properties)
-function as(name,p) {
+function as(name,p,computed) {
   var p = typeof p==="undefined" ? epsilon_p : toParser(p);
-  var asparser = action(p, function(ast){ return new Named(name,ast||null); } );
+  var asparser = action(p, function(ast){ return new Named(name,ast||null,computed); } );
   asparser.toString = function() { return (toString_AST
                                           ? 'as("'+name+'",'+p+')'
                                           : p.toString()); };
