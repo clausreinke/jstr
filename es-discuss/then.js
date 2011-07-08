@@ -160,5 +160,7 @@ function test1() => iterate(generator_while([1,2,3,4,5]));
 // should log elements, via log_, and array, via log_obj
 function test2() => iterate(generator_mapM([1,2,3,4,5])).then @< log_obj;
 
-log("---- test1()"); test1();
-log("---- test2()"); test2();
+log("---- test if_"); test_if();
+log("---- test while_"); test_while([1,2,3]);
+log("---- iterate over while_ generator"); test1();
+log("---- iterate over mapM generator"); test2();
