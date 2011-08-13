@@ -1,4 +1,5 @@
-var tests = function (test,opts,pc,grammar) {
+// TODO: once AST settles down, start filling in regression tests
+exports.tests = function (test,opts,pc,grammar) {
 
   var tests = {
 

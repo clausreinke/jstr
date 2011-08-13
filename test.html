@@ -18,6 +18,8 @@ var file = "test_inputs/test_input.js";
 // var file = "test_inputs/mini.js";  // use small source excerpts for tracing
 var opts = "p";
 
+var exports = {};
+
 </script>
 
 <script language="javascript" src="jsparse.js"></script>
@@ -26,6 +28,11 @@ var opts = "p";
 <script language="javascript" src="tests.js"></script>
 
 <script>
+
+  var tests   = exports.tests;
+  var test    = exports.test;
+  var pc      = exports.pc;
+  var grammar = exports.grammar;
 
   if (opts.match(/#/))
     tests(test,opts,pc,grammar);

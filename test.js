@@ -6,7 +6,7 @@
 // pc      : parser combinator library
 // grammar : grammar to parse, parameterized by language settings and pc
 // testcase: optional source file and language settings
-var test = function(file,opts,pc,grammar,testcase){ // TODO: restructure args
+exports.test = function(file,opts,pc,grammar,testcase){ // TODO: restructure args
 
     var log = testcase && testcase.log || function (msg) { console.log(msg); };
 

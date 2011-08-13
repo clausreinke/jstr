@@ -26,7 +26,7 @@
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
-var pc = (function(){
+exports.pc = (function(){
 
 function foldl(f, initial, seq) {
     for(var i=0; i< seq.length; ++i)

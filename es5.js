@@ -49,7 +49,7 @@
 
  */
 
-var grammar = function(LANGUAGE,pc){
+exports.grammar = function(LANGUAGE,pc){
 
 // import parser combinators
 var toParser = pc.toParser;

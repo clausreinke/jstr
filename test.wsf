@@ -17,6 +17,8 @@
     var opts = WScript.Arguments.length>1 ? 
                 WScript.Arguments.Item(1) : "p";
 
+    var exports = {};
+
   </script>
   <script language="JScript" src="jsparse.js"/>
   <script language="JScript" src="es5.js"/>
@@ -24,6 +26,11 @@
   <script language="JScript" src="tests.js"/>
 
   <script language="JScript">
+
+  var tests   = exports.tests;
+  var test    = exports.test;
+  var pc      = exports.pc;
+  var grammar = exports.grammar;
 
   if (opts.match(/#/))
     tests(test,opts,pc,grammar);

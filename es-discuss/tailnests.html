@@ -2,7 +2,7 @@
 <head>
 <title>Paren-free function definitions and applications</title>
 
-<script>
+<script language="javascript">
 
 var results, source, output;
 
@@ -32,11 +32,19 @@ function loadfile(file) {
 
 var opts = "pu";
 
+var exports = {};
+
 </script>
 
 <script language="javascript" src="../jsparse.js"></script>
 <script language="javascript" src="../es5.js"></script>
 <script language="javascript" src="../test.js"></script>
+
+<script language="javascript">
+  var test    = exports.test;
+  var pc      = exports.pc;
+  var grammar = exports.grammar;
+</script>
 
 <style type="text/css">
 form    { width: 100%; height: 100% }
