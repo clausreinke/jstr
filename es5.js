@@ -485,7 +485,12 @@ var ExpressionStatement =
     rule("ExpressionStatement",
     wrap("ExpressionStatement",
     whitespace(
-    sequence(not(choice("{", "function")),as("expression",Expression),SEMI))));
+    sequence(not("{"),
+             not(guard(IdentifierName,
+                 function(result){return result.matched==="function"
+                                       ? result
+                                       : false})),
+             as("expression",Expression),SEMI))));
 
 var Statement = 
     rule("Statement",
