@@ -426,6 +426,32 @@ function whitespace(p) {
 // hook for grammar-specified whitespace, with default trim
 whitespace.trim = function(input) { return input.trimLeft(); };
 
+// Parser combinator that filters the result of parser 'p' through the function 'predicate'.
+function guard(p, predicate) {
+    var p = toParser(p);
+    var pid = parser_id++;
+    var guardparser = function(state) {
+        var savedState = state;
+        var cached = savedState.getCached(pid);
+        if(cached)
+            return cached;
+
+        var x = p(state);
+        if(x) {
+            cached = predicate(make_result(x.remaining,x.matched,x.ast));
+        }
+        else {
+            cached = x;
+        }
+        savedState.putCached(pid, cached);
+        return cached;
+    };
+    guardparser.toString = function() {
+      return "action("+(depth++>max_depth?"...":p)+","+predicate+")";
+    };
+    return guardparser;
+}
+
 // Parser combinator that passes the AST generated from the parser 'p'
 // to the function 'f'. The result of 'f' is used as the AST in the result.
 function action(p, f) {
@@ -1219,6 +1245,7 @@ return {
   wrange : wrange,
   regex : regex,
   whitespace : whitespace,
+  guard : guard,
   action : action,
   join_action : join_action,
   left_factor_action : left_factor_action,

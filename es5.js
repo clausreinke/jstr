@@ -61,6 +61,7 @@ var wch = pc.wch;
 var wrange = pc.wrange;
 var regex = pc.regex;
 var whitespace = pc.whitespace;
+var guard = pc.guard;
 var action = pc.action;
 var join_action = pc.join_action;
 var left_factor_action = pc.left_factor_action;
